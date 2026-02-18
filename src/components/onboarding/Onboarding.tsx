@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-
+import { useRouter } from "next/navigation";
 const ONBOARDING_DATA = [
   {
     id: 1,
@@ -32,7 +31,7 @@ const ONBOARDING_DATA = [
 export const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
-  const navigate = useNavigate();
+  const navigate = useRouter();
 
   const handleNext = () => {
     if (currentStep < ONBOARDING_DATA.length - 1) {
@@ -63,13 +62,13 @@ export const Onboarding = () => {
           </div>
           <div className="flex gap-4 w-full pt-10">
             <Button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate.push("/login")}
               className="flex-1 bg-[#0a348f] hover:bg-blue-900 cursor-pointer py-7 rounded-xl font-bold text-lg"
             >
               Sign In
             </Button>
             <Button
-              onClick={() => navigate("/signup")}
+              onClick={() => navigate.push("/signup")}
               variant="outline"
               className="flex-1 border-[#0a348f] text-[#0a348f] cursor-pointer py-7 rounded-xl font-bold text-lg"
             >

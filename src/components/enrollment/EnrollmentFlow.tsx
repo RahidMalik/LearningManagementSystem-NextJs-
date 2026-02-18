@@ -11,8 +11,8 @@ export const EnrollmentFlow = () => {
   const prevStep = () => setStep((prev) => (prev > 1 ? prev - 1 : 1));
 
   return (
-    <div className="min-h-screen bg-white md:bg-slate-50 md:py-10">
-      <div className="max-w-md mx-auto bg-white min-h-screen md:min-h-200 md:rounded-[3rem] md:shadow-2xl overflow-hidden relative flex flex-col">
+    <div className="min-h-screen  md:py-10">
+      <div className="max-w-md mx-auto  min-h-screen md:min-h-200 md:rounded-[3rem] md:shadow-2xl overflow-hidden relative flex flex-col">
         {/* Header with Progress */}
         <div className="p-6 pb-0">
           <button

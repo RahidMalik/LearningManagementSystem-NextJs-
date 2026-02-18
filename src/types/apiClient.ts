@@ -47,5 +47,4 @@ class ApiClient {
         return (response as unknown) as ApiResponse<T>;
     }
 }
-
-export const apiClient = new ApiClient(import.meta.env.VITE_API_URL || 'http://localhost:5001/api');
+export const apiClient = new ApiClient(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api');

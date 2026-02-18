@@ -13,17 +13,11 @@ export const BottomNav = () => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-18 bg-white border-t flex justify-around items-center px-6 md:hidden z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] pb-safe">
       {/* Home - Dashboard */}
-      <Link
-        href="/dashboard" //
-        className="flex flex-col items-center py-2 transition-all"
-      >
+      <Link href="/" className="flex flex-col items-center py-2 transition-all">
         <div
-          className={`p-2 rounded-xl ${isActive("/dashboard") ? "bg-[#0a348f] text-white" : "text-slate-400"}`}
+          className={`p-2 rounded-xl ${isActive("/") ? "bg-[#0a348f] text-white" : "text-slate-400"}`}
         >
-          <Home
-            size={24}
-            fill={isActive("/dashboard") ? "currentColor" : "none"}
-          />
+          <Home size={24} fill={isActive("/") ? "currentColor" : "none"} />
         </div>
       </Link>
 

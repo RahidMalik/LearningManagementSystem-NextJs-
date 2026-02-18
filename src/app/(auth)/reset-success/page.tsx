@@ -1,10 +1,9 @@
+"use client";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
-export const ResetSuccess = ({
-  onNavigate,
-}: {
-  onNavigate: (v: any) => void;
-}) => {
+export default function ResetSuccess() {
+  const router = useRouter();
   return (
     // 1. Full screen centering wrapper
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 bg-white">
@@ -42,7 +41,7 @@ export const ResetSuccess = ({
 
         {/* 2. Responsive Button */}
         <Button
-          onClick={() => onNavigate("/login")}
+          onClick={() => router.push("/login")}
           className="w-full bg-[#0a348f] hover:bg-blue-900 h-12 md:h-14 rounded-xl font-bold text-base md:text-lg cursor-pointer transition-all active:scale-95 shadow-lg shadow-blue-50"
         >
           BACK TO LOGIN
@@ -50,4 +49,4 @@ export const ResetSuccess = ({
       </div>
     </div>
   );
-};
+}

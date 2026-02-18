@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -5,10 +7,10 @@ import { Eye, EyeOff } from "lucide-react";
 import { handleGoogleAuth } from "@/utils/GoogleAuth";
 import { toast } from "react-hot-toast";
 import { api } from "@/services/api";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 
-export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
-  const navigateToLogin = useNavigate();
+export default function Login() {
+  const router = useRouter();
   const [Email, setEmail] = useState<string>("");
   const [Password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState(false);
@@ -39,7 +41,7 @@ export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
         });
         if (res.success) {
           toast.success("Welcome back!", { id: loading });
-          navigateToLogin("/dashboard");
+          router.push("/dashboard");
         }
       }
     } catch (error) {
@@ -57,7 +59,7 @@ export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
       const res = await api.login(Email, Password);
       if (res.success) {
         toast.success("Login Successful", { id: loading });
-        navigateToLogin("/dashboard");
+        router.push("/dashboard");
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials", { id: loading });
@@ -65,33 +67,38 @@ export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
   };
 
   return (
-    // 1. Full Screen Centering Logic
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 bg-white">
       <div className="w-full max-w-sm space-y-8 animate-in fade-in duration-300">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold font-sans">Sign in</h1>
+          <h1 className="text-3xl font-bold font-sans text-[#0a348f]">
+            Sign in
+          </h1>
           <p className="text-slate-500">Please Sign in with your account</p>
         </div>
 
         <form onSubmit={handleSignIn} className="space-y-6">
           <div className="space-y-1">
-            <label className="text-sm font-semibold ml-1">Email Here</label>
+            <label className="text-sm font-semibold ml-1 text-slate-700">
+              Email Here
+            </label>
             <Input
               type="email"
               placeholder="Your Email Here"
               onChange={(e) => setEmail(e.target.value)}
-              className="h-12 md:h-14 rounded-xl bg-slate-50 border-none px-4"
+              className="h-12 md:h-14 rounded-xl bg-slate-50 border-none px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-semibold ml-1">Password</label>
+            <label className="text-sm font-semibold ml-1 text-slate-700">
+              Password
+            </label>
             <div className="relative group">
               <Input
                 type={showPassword ? "text" : "password"}
                 placeholder="********"
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-12 md:h-14 rounded-xl bg-slate-50 border-none px-4 pr-12"
+                className="h-12 md:h-14 rounded-xl bg-slate-50 border-none px-4 pr-12 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
               />
               <button
                 type="button"
@@ -103,7 +110,7 @@ export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
 
               <button
                 type="button"
-                onClick={() => onNavigate("/reset")}
+                onClick={() => router.push("/reset")}
                 className="absolute right-0 -bottom-6 text-xs text-slate-400 hover:text-[#0a348f] transition-colors font-medium"
               >
                 Forgot Password?
@@ -111,7 +118,6 @@ export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
             </div>
           </div>
 
-          {/* 2. Responsive Sign In Button */}
           <Button
             type="submit"
             className="w-full bg-[#0a348f] hover:bg-blue-900 h-12 md:h-14 rounded-xl mt-4 font-bold text-base md:text-lg shadow-lg shadow-blue-100 cursor-pointer active:scale-95 transition-all"
@@ -128,12 +134,11 @@ export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
           <div className="grow border-t border-slate-200"></div>
         </div>
 
-        {/* 3. Responsive Google Button */}
         <Button
           type="button"
           onClick={onGoogleClick}
           variant="outline"
-          className="w-full h-12 md:h-14 rounded-xl font-bold text-base md:text-lg flex gap-3 cursor-pointer hover:bg-slate-50"
+          className="w-full h-12 md:h-14 rounded-xl font-bold text-base md:text-lg flex gap-3 cursor-pointer hover:bg-slate-50 border-slate-200"
         >
           <img
             src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
@@ -146,7 +151,7 @@ export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
         <div className="text-center text-sm text-slate-500 pt-4">
           Didn't have an account?{" "}
           <button
-            onClick={() => onNavigate("/signup")}
+            onClick={() => router.push("/signup")}
             className="text-[#0a348f] font-bold hover:underline cursor-pointer"
           >
             Sign up Here
@@ -155,4 +160,4 @@ export const Login = ({ onNavigate }: { onNavigate: (v: any) => void }) => {
       </div>
     </div>
   );
-};
+}

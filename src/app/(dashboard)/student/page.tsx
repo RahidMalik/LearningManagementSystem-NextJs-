@@ -1,73 +1,46 @@
-import { Badge } from "@/components/ui/badge";
+"use client";
+
 import { CourseCard } from "@/components/shared/CourseCard";
-import { useState } from "react";
+import Link from "next/link";
 
-export const StudentDashboard = () => {
-  const [isActive, setIsActive] = useState("Graphics Design");
+export default function StudentDashboard() {
+  const myCourses = [
+    {
+      id: "1",
+      title: "Graphic Design Masterclass",
+      instructor: "Syed Hasnain",
+      progress: 65,
+      image: "/video/CourseVideo.png",
+    },
+    {
+      id: "2",
+      title: "Full Stack Web Dev (MERN)",
+      instructor: "Cybex Team",
+      progress: 20,
+      image: "/video/CourseVideo.png",
+    },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto pb-20 px-6 py-2">
-      {/* 1. Header Row */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">
-          Welcome, <span className="text-[#0a348f]">Rahid</span>
-        </h1>
+    <div className="p-8 space-y-6 bg-slate-50 min-h-screen">
+      <div>
+        <h1 className="text-3xl font-extrabold text-[#0a348f]">My Learning</h1>
+        <p className="text-slate-500">
+          Welcome back, let's continue your courses.
+        </p>
       </div>
 
-      {/* Categories */}
-      <div className="flex gap-3 overflow-x-auto no-scrollbar mb-8 cursor-pointer">
-        {["Graphics Design", "Wireframing", "UI/UX", "Video Editing"].map(
-          (cat) => (
-            <Badge
-              key={cat}
-              variant={isActive === cat ? "default" : "outline"}
-              onClick={() => setIsActive(cat)}
-              className="px-6 py-2 rounded-xl font-normal"
-            >
-              {cat}
-            </Badge>
-          ),
-        )}
-      </div>
-
-      {/* Continue Watching Section */}
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="font-bold text-lg">Continue Watching</h2>
-        <span className="text-sm text-muted-foreground cursor-pointer hover:underline">
-          See All
-        </span>
-      </div>
-
-      {/* Grid for Courses */}
-      <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        <CourseCard
-          id="1"
-          title="Graphic Design"
-          instructor="Syed Hasnain"
-          progress={75}
-          image="/Tumbnailimages/GraphicDesign.png"
-        />
-        <CourseCard
-          id="2"
-          title="Wireframing"
-          instructor="Shoaib Hassan"
-          progress={65}
-          image="/Tumbnailimages/Wireframing.png"
-        />
-        <CourseCard
-          id="3"
-          title="Website Design"
-          instructor="Dawar Hanif"
-          progress={85}
-          image="/Tumbnailimages/Uiux.png"
-        />
-        <CourseCard
-          id="4"
-          title="Video Editing"
-          instructor="Ammar Ijaz"
-          progress={45}
-          image="/Tumbnailimages/VideoEditing.png"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {myCourses.map((course) => (
+          <Link
+            href={`/course/${course.id}`}
+            key={course.id}
+            className="block transition-transform hover:scale-[1.02]"
+          >
+            <CourseCard {...course} />
+          </Link>
+        ))}
       </div>
     </div>
   );
-};
+}

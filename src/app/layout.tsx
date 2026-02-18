@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Toaster } from "react-hot-toast";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { BottomNav } from "@/components/shared/BottomNav/page";
+import { BottomNav } from "@/components/shared/BottomNav";
 import "./globals.css";
 
 export default function RootLayout({
@@ -19,13 +19,14 @@ export default function RootLayout({
     "/login",
     "/signup",
     "/reset",
+    "/reset-success",
     "/success",
   ].includes(pathname);
 
   return (
     <html lang="en">
-      <body>
-        <Toaster position="top-right" />
+      <body className="antialiased">
+        <Toaster position="top-right" reverseOrder={false} />
 
         <div className="min-h-screen flex flex-col">
           {!hideLayout && <Header />}

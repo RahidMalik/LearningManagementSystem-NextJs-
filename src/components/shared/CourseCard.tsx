@@ -1,3 +1,5 @@
+"use client";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Star, Eye } from "lucide-react";
@@ -23,7 +25,7 @@ export const CourseCard = ({
 
   return (
     <Card
-      onClick={() => router.push(`/course/${id}`)}
+      onClick={() => router.push(`/student/course/${id}`)}
       className="group relative overflow-hidden border-none shadow-sm rounded-2xl transition-all duration-300 hover:shadow-xl cursor-pointer bg-white"
     >
       {/* Image Container */}
@@ -32,7 +34,7 @@ export const CourseCard = ({
           src={image}
           alt={title}
           fill
-          className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+          className="object-cover transition-transform duration-500 group-hover:scale-110"
         />
 
         {/* Hover Overlay */}
@@ -45,7 +47,7 @@ export const CourseCard = ({
 
       <CardContent className="p-3 space-y-2">
         <div className="flex justify-between items-start gap-2">
-          <h3 className="font-bold text-sm leading-tight line-clamp-2">
+          <h3 className="font-bold text-sm leading-tight line-clamp-2 text-slate-800">
             {title}
           </h3>
           <div className="flex text-blue-600 shrink-0">
@@ -57,10 +59,11 @@ export const CourseCard = ({
         <p className="text-[10px] text-muted-foreground">By {instructor}</p>
 
         <div className="space-y-1 mt-2">
-          <Progress value={progress} className="h-1.5" />
+          {/* Progress bar color ko primary blue kiya hai */}
+          <Progress value={progress} className="h-1.5 bg-slate-100" />
           <div className="flex justify-between items-center text-[10px] text-muted-foreground">
             <span>Progress</span>
-            <span>{progress}% Done</span>
+            <span className="font-bold text-[#0a348f]">{progress}% Done</span>
           </div>
         </div>
       </CardContent>
