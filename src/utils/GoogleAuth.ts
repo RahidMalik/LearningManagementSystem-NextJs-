@@ -10,10 +10,7 @@ export const handleGoogleAuth = async () => {
         };
     } catch (error: any) {
         console.error("Google Auth Error", error);
-        return {
-            user: null,
-            error: error.message
-        };
+        throw error; // Rethrow to handle in UI
     }
 };
 // Use for SignOut Auth

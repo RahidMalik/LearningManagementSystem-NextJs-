@@ -238,7 +238,7 @@ export default function CourseDetailPage() {
 
             <div className="space-y-4 pt-6">
               <Button
-                onClick={() => router.push(`/enroll/${id}`)}
+                onClick={() => router.push(`/payment/${id}`)}
                 className="w-full bg-[#0a348f] hover:bg-blue-900 text-white py-8 rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-300 uppercase italic active:scale-95 transition-transform"
               >
                 Enroll Now

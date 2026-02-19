@@ -1,5 +1,4 @@
 "use client";
-
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { handleGoogleAuth } from "@/utils/GoogleAuth";
@@ -7,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/services/api";
 import toast from "react-hot-toast";
+import { Loader2 } from "lucide-react";
 
-// 1. Isay "export default function" bana diya
 export default function SignUpPage() {
   const router = useRouter();
 
@@ -17,6 +16,7 @@ export default function SignUpPage() {
   const [Email, setEmail] = useState<string>("");
   const [Password, setPassword] = useState<string>("");
   const [ConfirmPassword, setConfirmPassword] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Validation Logic
   const validateForm = () => {
@@ -43,40 +43,61 @@ export default function SignUpPage() {
   // Manual Sign Up
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateForm() || isLoading) return;
 
-    const loading = toast.loading("Creating account...");
+    setIsLoading(true);
+    const loadingToast = toast.loading("Creating account...");
     try {
       const res = await api.register(fullName, Email, Password);
       if (res.success) {
-        toast.success("Registration successful!", { id: loading });
+        toast.success("Registration successful!", { id: loadingToast });
         router.push("/dashboard");
       }
     } catch (error: any) {
-      toast.error(error.message || "Sign up failed", { id: loading });
+      toast.error(error.message || "Sign up failed", { id: loadingToast });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Google Sign Up
   const onGoogleClick = async () => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    const loadingToast = toast.loading("Connecting to Google...");
+
     try {
-      const { user } = await handleGoogleAuth();
-      if (user) {
-        const loading = toast.loading("Connecting Google...");
+      const response = await handleGoogleAuth();
+
+      if (response && response.user) {
+        const user = response.user;
+
+        // Mocking API call or actual login
         const res = await api.googleLogin({
-          email: user.email,
-          name: user.displayName,
+          email: user.email || "",
+          name: user.displayName || "",
           uid: user.uid,
-          photoURL: user.photoURL,
+          photoURL: user.photoURL || "",
         });
+
         if (res.success) {
-          toast.success("Welcome!", { id: loading });
-          router.push("/dashboard");
+          toast.success("Welcome aboard!", { id: loadingToast });
+          router.push("/");
         }
       }
     } catch (error: any) {
-      toast.error("Google login failed.");
+      // Error handling specifically for common Firebase issues
+      if (error.code === "auth/popup-closed-by-user") {
+        toast.error("Popup closed before finishing.", { id: loadingToast });
+      } else if (error.code === "auth/cancelled-popup-request") {
+        toast.dismiss(loadingToast); // Multiple clicks handled
+      } else {
+        toast.error("Google login failed.", { id: loadingToast });
+      }
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,6 +117,7 @@ export default function SignUpPage() {
             placeholder="Full Name"
             value={fullName}
             onChange={(e) => setFullname(e.target.value)}
+            disabled={isLoading}
             className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
           />
           <Input
@@ -103,6 +125,7 @@ export default function SignUpPage() {
             placeholder="Email"
             value={Email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={isLoading}
             className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
           />
           <Input
@@ -110,6 +133,7 @@ export default function SignUpPage() {
             placeholder="Password"
             value={Password}
             onChange={(e) => setPassword(e.target.value)}
+            disabled={isLoading}
             className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
           />
           <Input
@@ -117,14 +141,16 @@ export default function SignUpPage() {
             placeholder="Confirm Password"
             value={ConfirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={isLoading}
             className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
           />
 
           <Button
             type="submit"
-            className="w-full h-12 md:h-14 bg-[#0a348f] hover:bg-[#0d275f] rounded-xl font-bold text-lg mt-2 cursor-pointer transition-all active:scale-95 shadow-lg shadow-blue-100"
+            disabled={isLoading}
+            className="w-full h-12 md:h-14 bg-[#0a348f] hover:bg-[#0d275f] rounded-xl font-bold text-lg mt-2 transition-all active:scale-95 shadow-lg shadow-blue-100"
           >
-            Sign Up
+            {isLoading ? <Loader2 className="animate-spin" /> : "Sign Up"}
           </Button>
         </form>
 
@@ -139,23 +165,30 @@ export default function SignUpPage() {
         <Button
           type="button"
           onClick={onGoogleClick}
+          disabled={isLoading}
           variant="outline"
-          className="w-full h-12 md:h-14 rounded-xl font-bold text-lg flex gap-3 cursor-pointer hover:bg-slate-50 border-slate-200"
+          className="w-full h-12 md:h-14 rounded-xl font-bold text-lg flex gap-3 border-slate-200 hover:bg-slate-50"
         >
-          <img
-            src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-            alt="Google"
-            className="w-6 h-6"
-          />
-          <span>Sign Up with Google</span>
+          {isLoading ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <>
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                alt="Google"
+                className="w-6 h-6"
+              />
+              <span>Sign Up with Google</span>
+            </>
+          )}
         </Button>
 
         <div className="text-center text-sm text-slate-500 pt-2">
           Already have an account?{" "}
-          {/* onNavigate ki jagah seedha router.push use kiya */}
           <button
+            type="button"
             onClick={() => router.push("/login")}
-            className="text-[#0a348f] font-bold hover:underline cursor-pointer"
+            className="text-[#0a348f] font-bold hover:underline"
           >
             Sign in Here
           </button>

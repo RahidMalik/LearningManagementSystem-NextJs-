@@ -8,16 +8,16 @@ export default function StudentDashboard() {
     {
       id: "1",
       title: "Graphic Design Masterclass",
-      instructor: "Syed Hasnain",
+      instructor: "Rahid Iqbal",
       progress: 65,
-      image: "/video/CourseVideo.png",
+      image: "/Tumbnailimages/GraphicDesign.png",
     },
     {
       id: "2",
       title: "Full Stack Web Dev (MERN)",
       instructor: "Cybex Team",
       progress: 20,
-      image: "/video/CourseVideo.png",
+      image: "/Tumbnailimages/Uiux.png",
     },
   ];
 

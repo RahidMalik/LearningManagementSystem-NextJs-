@@ -14,6 +14,7 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -99,16 +100,27 @@ export default function ResetPasswordPage() {
             </button>
           </div>
 
-          <Input
-            type="password"
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            disabled={isLoading}
-            className="h-14 rounded-2xl bg-slate-50 border-none px-5 focus-visible:ring-2 focus-visible:ring-[#0a348f]/20 transition-all"
-          />
+          {/* Confirm Password Field */}
+          <div className="relative group">
+            {" "}
+            {/* Ye 'relative' hona zaroori hai */}
+            <Input
+              type={showConfirmPassword ? "text" : "password"}
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={isLoading}
+              className="h-14 rounded-2xl bg-slate-50 border-none px-5 focus-visible:ring-2 focus-visible:ring-[#0a348f]/20 transition-all pr-12"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0a348f] transition-colors z-10"
+            >
+              {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
         </div>
-
         {/* Action Buttons */}
         <div className="space-y-4 pt-2">
           <Button
