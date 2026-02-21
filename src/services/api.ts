@@ -38,16 +38,27 @@ export const api = {
         }
         return response;
     },
-    // Remove token from localStorage
-    logout: async () => {
-        apiClient.setToken(null)
-    },
     // Reset Password API Call
     resetPassword: async (newPassword: string): Promise<ApiResponse<{ message: string }>> => {
-        const response = await apiClient.request<{ message: string }>('/auth/reset-password', {
+        const response = await apiClient.request<{ message: string }>('/api/auth/reset-password', {
             method: "POST",
             data: { newPassword },
         })
         return response;
+    },
+    // Remove token from localStorage
+    logout: async () => {
+        apiClient.setToken(null)
+    },
+    getProfile: async () => {
+        return await apiClient.request('/me', {
+            method: 'GET',
+        });
+    },
+    updateProfile: async (data: { name: string }) => {
+        return await apiClient.request('/me/update-profile', {
+            method: 'PUT',
+            data
+        });
     }
 }

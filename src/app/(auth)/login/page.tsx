@@ -8,6 +8,7 @@ import { handleGoogleAuth } from "@/utils/GoogleAuth";
 import { toast } from "react-hot-toast";
 import { api } from "@/services/api";
 import { useRouter } from "next/navigation";
+import { apiClient } from "@/types/apiClient"; // Check karein path sahi ho
 
 export default function Login() {
   const router = useRouter();
@@ -29,8 +30,9 @@ export default function Login() {
     return true;
   };
 
+  // --- Google Login Handler ---
   const onGoogleClick = async () => {
-    if (isLoading) return; // Prevent multiple clicks
+    if (isLoading) return;
 
     setIsLoading(true);
     const loadingToast = toast.loading("Connecting to Google...");
@@ -47,23 +49,24 @@ export default function Login() {
         });
 
         if (res.success) {
+          // ✅ Token save karein
+          apiClient.setToken(res.token || null);
+
           toast.success("Welcome back!", { id: loadingToast });
           router.push("/");
+          router.refresh();
         }
       }
     } catch (error: any) {
-      if (error.code === "auth/cancelled-popup-request") {
-        toast.dismiss(loadingToast);
-      } else if (error.code === "auth/popup-closed-by-user") {
-        toast.error("Popup closed by user.", { id: loadingToast });
-      } else {
-        toast.error("Google login failed.", { id: loadingToast });
-      }
+      toast.error(error.message || "Google login failed.", {
+        id: loadingToast,
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
+  // --- Email/Password Login Handler ---
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm() || isLoading) return;
@@ -73,8 +76,13 @@ export default function Login() {
     try {
       const res = await api.login(Email, Password);
       if (res.success) {
+        apiClient.setToken((res as any).token || null);
+
         toast.success("Login Successful", { id: loadingToast });
+
+        // Use replace or push and then refresh
         router.push("/");
+        setTimeout(() => router.refresh(), 100);
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials", { id: loadingToast });

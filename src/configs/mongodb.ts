@@ -12,9 +12,25 @@ async function dbConnect() {
     if (cached.conn) return cached.conn;
 
     if (!cached.promise) {
-        cached.promise = mongoose.connect(MONGODB_URI).then((mongoose) => mongoose);
+        const opts = {
+            bufferCommands: false,
+            serverSelectionTimeoutMS: 5000,
+        };
+
+        cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+            console.log("✅ MongoDB Auth Success");
+            return mongoose;
+        });
     }
-    cached.conn = await cached.promise;
+
+    try {
+        cached.conn = await cached.promise;
+    } catch (e) {
+        cached.promise = null;
+        console.error("❌ MongoDB Connection Error:", e);
+        throw e;
+    }
+
     return cached.conn;
 }
 

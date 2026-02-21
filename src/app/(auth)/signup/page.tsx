@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/services/api";
 import toast from "react-hot-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
+import { apiClient } from "@/types/apiClient";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -17,6 +18,11 @@ export default function SignUpPage() {
   const [Password, setPassword] = useState<string>("");
   const [ConfirmPassword, setConfirmPassword] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Password Show/Hide States
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState<boolean>(false);
 
   // Validation Logic
   const validateForm = () => {
@@ -50,8 +56,12 @@ export default function SignUpPage() {
     try {
       const res = await api.register(fullName, Email, Password);
       if (res.success) {
+        apiClient.setToken((res as any).token);
+
         toast.success("Registration successful!", { id: loadingToast });
-        router.push("/dashboard");
+        router.push("/");
+
+        setTimeout(() => router.refresh(), 100);
       }
     } catch (error: any) {
       toast.error(error.message || "Sign up failed", { id: loadingToast });
@@ -73,7 +83,6 @@ export default function SignUpPage() {
       if (response && response.user) {
         const user = response.user;
 
-        // Mocking API call or actual login
         const res = await api.googleLogin({
           email: user.email || "",
           name: user.displayName || "",
@@ -82,16 +91,17 @@ export default function SignUpPage() {
         });
 
         if (res.success) {
+          apiClient.setToken((res as any).token);
           toast.success("Welcome aboard!", { id: loadingToast });
           router.push("/");
+          setTimeout(() => router.refresh(), 100);
         }
       }
     } catch (error: any) {
-      // Error handling specifically for common Firebase issues
       if (error.code === "auth/popup-closed-by-user") {
         toast.error("Popup closed before finishing.", { id: loadingToast });
       } else if (error.code === "auth/cancelled-popup-request") {
-        toast.dismiss(loadingToast); // Multiple clicks handled
+        toast.dismiss(loadingToast);
       } else {
         toast.error("Google login failed.", { id: loadingToast });
       }
@@ -128,22 +138,44 @@ export default function SignUpPage() {
             disabled={isLoading}
             className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
           />
-          <Input
-            type="password"
-            placeholder="Password"
-            value={Password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={isLoading}
-            className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
-          />
-          <Input
-            type="password"
-            placeholder="Confirm Password"
-            value={ConfirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            disabled={isLoading}
-            className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
-          />
+
+          {/* Password Input with Toggle */}
+          <div className="relative">
+            <Input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={Password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+              className="h-14 rounded-xl border-none bg-slate-50 px-4 pr-12 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
+          {/* Confirm Password Input with Toggle */}
+          <div className="relative">
+            <Input
+              type={showConfirmPassword ? "text" : "password"}
+              placeholder="Confirm Password"
+              value={ConfirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={isLoading}
+              className="h-14 rounded-xl border-none bg-slate-50 px-4 pr-12 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
 
           <Button
             type="submit"

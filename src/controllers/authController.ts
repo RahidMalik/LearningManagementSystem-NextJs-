@@ -2,11 +2,13 @@ import dbconnect from "@/configs/mongodb";
 import { User } from "@/models/User";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
+import { signToken } from "@/lib/jwt";
+import { verifyToken } from "@/lib/jwt";
 
 // --- Validations Helpers ---
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-// Kam az kam: 8 characters, 1 Uppercase, 1 Lowercase, 1 Number
+
 
 export const registerUser = async (req: Request) => {
     try {
@@ -49,13 +51,15 @@ export const registerUser = async (req: Request) => {
             email,
             password: hashPassword
         });
-
-        // Password return nahi karna security ke liye
         const { password: _, ...userWithoutPassword } = newUser._doc;
 
-        return NextResponse.json({ success: true, user: userWithoutPassword });
+        // Don't return Password for security reasons
+        const token = signToken({ userId: newUser._id, email: newUser.email });
+
+        return NextResponse.json({ success: true, user: userWithoutPassword, token });
 
     } catch (error: any) {
+        console.error("DEBUG ERROR:", error)
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
@@ -87,11 +91,15 @@ export const Login = async (req: Request) => {
         }
 
         // 4. Success Response
+        const token = signToken({ userId: user._id, email: user.email });
+
+
         const { password: _, ...userData } = user._doc;
         return NextResponse.json({
             success: true,
             message: `Welcome back ${user.name}`,
-            user: userData
+            user: userData,
+            token,
         });
 
     } catch (error: any) {
@@ -103,21 +111,99 @@ export const Login = async (req: Request) => {
 export const syncFirebaseUser = async (req: Request) => {
     try {
         await dbconnect();
-        const { name, email, image, uid } = await req.json();
+        const { name, email, photoURL, uid } = await req.json();
 
         let user = await User.findOne({ email });
 
-        if (!user) {
+        if (user) {
+
+            user.name = name || user.name;
+            user.photoURL = photoURL || user.photoURL;
+
+            if (!user.googleId) user.googleId = uid;
+            await user.save();
+        } else {
             user = await User.create({
                 name,
                 email,
-                image,
-                role: "student",
-                firebaseUid: uid
+                photoURL,
+                googleId: uid,
+                isVerified: true
             });
         }
-        return NextResponse.json({ success: true, user });
+
+        const token = signToken({ userId: user._id, email: user.email });
+
+        const { password: _, ...userData } = user._doc;
+
+        return NextResponse.json({
+            success: true,
+            user: userData,
+            token,
+        });
+    } catch (error: any) {
+        console.error("GOOGLE SYNC ERROR:", error.message);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+};
+
+// 2. Update Profile Controller
+export const updateProfile = async (req: Request) => {
+    try {
+        await dbconnect();
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.split(" ")[1];
+
+        if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const decoded: any = verifyToken(token);
+        const { name } = await req.json();
+
+        const updatedUser = await User.findByIdAndUpdate(
+            decoded.userId,
+            { name },
+            { new: true }
+        ).select("-password");
+
+        return NextResponse.json({ success: true, user: updatedUser });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
+
+// 4.  Get me controller (Profile Fetching)
+export const getMe = async (req: Request) => {
+    try {
+        await dbconnect();
+        // 1. Authorization Header check karein
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.split(" ")[1];
+
+        if (!token) {
+            return NextResponse.json({ error: "Access denied. No token provided." }, { status: 401 });
+        }
+
+        // 2. Verify the token
+        const decoded: any = verifyToken(token);
+        if (!decoded) {
+            return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
+        }
+
+        // 3. Find the user from database using decoded userId
+        const user = await User.findById(decoded.userId).select("-password");
+
+        if (!user) {
+            return NextResponse.json({ error: "User not found in database" }, { status: 404 });
+        }
+
+        return NextResponse.json({
+            success: true,
+            user
+        }, { status: 200 });
+
+    } catch (error: any) {
+        console.error("GET_ME_ERROR:", error.message);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+};
+

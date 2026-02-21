@@ -6,13 +6,14 @@ export interface User {
     email: string;
     password: string;
     role: "student" | "instructor" | "admin";
-    avatar?: string;
+    photoURL?: string;
     isGoogleAuth?: boolean;
 };
 // Api Response
 export interface ApiResponse<T> {
     success: boolean;
     message: string;
+    token?: string;
     data?: T;
     error?: string;
 };
