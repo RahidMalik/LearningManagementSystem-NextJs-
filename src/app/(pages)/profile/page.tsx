@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Camera,
   Mail,
@@ -8,13 +8,11 @@ import {
   BookOpen,
   ChevronRight,
   Loader2,
-  LogOut,
   Save,
   ShieldCheck,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { api } from "@/services/api";
@@ -22,18 +20,22 @@ import { api } from "@/services/api";
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [newName, setNewName] = useState<string>("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Fetch Data from MongoDB ---
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const res = await api.getProfile();
-        if (res.success) {
-          setUser(res.user);
-          setNewName(res.user.name);
+        const userData = res?.success ? res.user : res?.data?.user;
+        if (userData) {
+          setUser(userData);
+          setNewName(userData.name);
         }
       } catch (error: any) {
         toast.error("Session expired. Please login again.");
@@ -51,7 +53,10 @@ export default function ProfilePage() {
 
     setIsUpdating(true);
     try {
-      const res = await api.updateProfile({ name: newName });
+      const res = await api.updateProfile({
+        name: newName,
+        photoURL: user.photoURL || "",
+      });
       if (res.success) {
         setUser({ ...user, name: newName });
         toast.success("Profile updated successfully!");
@@ -60,6 +65,48 @@ export default function ProfilePage() {
       toast.error(error.message);
     } finally {
       setIsUpdating(false);
+    }
+  };
+  // --- Handle Photo Upload ---
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+
+    const localPreview = URL.createObjectURL(file);
+    setPreviewUrl(localPreview);
+    setIsUploading(true);
+
+    const toastId = toast.loading("Uploading photo...");
+
+    try {
+      const res = await api.UpdateProfilePhoto(file);
+      if (res.success) {
+        setUser(res.user); // Update state with new user data
+        setPreviewUrl(null); // Clear preview, use actual URL now
+        toast.success("Photo updated successfully!", { id: toastId });
+      } else {
+        toast.error("Upload failed", { id: toastId });
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload photo", { id: toastId });
+      setPreviewUrl(null); // Clear preview on error
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""; // Clear file input
+      }
     }
   };
 
@@ -90,21 +137,39 @@ export default function ProfilePage() {
 
             <div className="relative group">
               <div className="h-36 w-36 rounded-full overflow-hidden border-4 border-white shadow-2xl group-hover:brightness-75 transition-all">
-                <Image
+                {isUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10">
+                    <Loader2 className="animate-spin text-white" />
+                  </div>
+                )}
+                <img
                   src={
-                    user?.photoURL && user.photoURL.startsWith("http")
+                    previewUrl ||
+                    (user?.photoURL && user.photoURL.trim() !== ""
                       ? user.photoURL
-                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=random`
+                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=0a348f&color=fff&size=200`)
                   }
-                  alt="Avatar"
-                  width={144}
-                  height={144}
-                  className="object-cover h-full w-full"
-                  priority
-                  unoptimized
+                  alt={user?.name || "User Avatar"}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=0a348f&color=fff&size=200`;
+                  }}
+                />
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                  accept="image/*"
                 />
               </div>
-              <button className="absolute bottom-2 right-2 bg-[#0a348f] p-2 rounded-full text-white shadow-lg hover:scale-110 transition-transform">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-2 right-2 bg-[#0a348f] p-2 rounded-full text-white shadow-lg hover:scale-110 transition-transform"
+              >
                 <Camera size={16} />
               </button>
             </div>

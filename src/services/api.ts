@@ -55,10 +55,19 @@ export const api = {
             method: 'GET',
         });
     },
-    updateProfile: async (data: { name: string }) => {
+    updateProfile: async (data: { name: string, photoURL: string }) => {
         return await apiClient.request('/me/update-profile', {
             method: 'PUT',
             data
+        });
+    },
+
+    UpdateProfilePhoto: async (file: File) => {
+        const formData = new FormData();
+        formData.append("avatar", file);
+        return await apiClient.request("/me/update-photo", {
+            method: "POST",
+            data: formData,
         });
     }
 }

@@ -3,12 +3,12 @@ import { User } from "@/models/User";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import { signToken } from "@/lib/jwt";
-import { verifyToken } from "@/lib/jwt";
+import validateRequest from "@/middleware/authMiddleware";
+import cloudinary from "@/configs/cloudinary";
 
 // --- Validations Helpers ---
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-
 
 export const registerUser = async (req: Request) => {
     try {
@@ -116,11 +116,17 @@ export const syncFirebaseUser = async (req: Request) => {
         let user = await User.findOne({ email });
 
         if (user) {
+            if (!user.name) {
+                user.name = name;
+            }
 
-            user.name = name || user.name;
-            user.photoURL = photoURL || user.photoURL;
+            if (!user.photoURL) {
+                user.photoURL = photoURL;
+            }
 
-            if (!user.googleId) user.googleId = uid;
+            if (!user.googleId) {
+                user.googleId = uid;
+            }
             await user.save();
         } else {
             user = await User.create({
@@ -151,17 +157,19 @@ export const syncFirebaseUser = async (req: Request) => {
 export const updateProfile = async (req: Request) => {
     try {
         await dbconnect();
-        const authHeader = req.headers.get("authorization");
-        const token = authHeader?.split(" ")[1];
 
-        if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        // 1. Middleware Auth Check
+        const authResult = await validateRequest(req);
+        if (authResult.error || !authResult.user) {
+            return NextResponse.json({ error: authResult.error || "Authentication failed" }, { status: authResult.status || 401 });
+        }
 
-        const decoded: any = verifyToken(token);
-        const { name } = await req.json();
+        const { name, photoURL } = await req.json();
 
+        // 2. Update Database using decoded userId from middleware
         const updatedUser = await User.findByIdAndUpdate(
-            decoded.userId,
-            { name },
+            authResult.user.userId,
+            { name, photoURL },
             { new: true }
         ).select("-password");
 
@@ -175,22 +183,15 @@ export const updateProfile = async (req: Request) => {
 export const getMe = async (req: Request) => {
     try {
         await dbconnect();
-        // 1. Authorization Header check karein
-        const authHeader = req.headers.get("authorization");
-        const token = authHeader?.split(" ")[1];
 
-        if (!token) {
-            return NextResponse.json({ error: "Access denied. No token provided." }, { status: 401 });
+        // 1. Middleware Auth Check
+        const authResult = await validateRequest(req);
+        if (authResult.error || !authResult.user) {
+            return NextResponse.json({ error: authResult.error || "Authentication failed" }, { status: authResult.status || 401 });
         }
 
-        // 2. Verify the token
-        const decoded: any = verifyToken(token);
-        if (!decoded) {
-            return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
-        }
-
-        // 3. Find the user from database using decoded userId
-        const user = await User.findById(decoded.userId).select("-password");
+        // 2. Find the user from database using decoded userId
+        const user = await User.findById(authResult.user.userId).select("-password");
 
         if (!user) {
             return NextResponse.json({ error: "User not found in database" }, { status: 404 });
@@ -206,4 +207,60 @@ export const getMe = async (req: Request) => {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 };
+// 5. Update Profile Photo Controller
+export const UpdateProfilePhoto = async (req: Request) => {
+    try {
+        await dbconnect();
+        // 1. Middleware Auth Check
+        const authResult = await validateRequest(req);
+        if (authResult.error || !authResult.user) {
+            return NextResponse.json({ error: authResult.error || "Authentication failed" }, { status: authResult.status || 401 });
+        }
 
+        // 2. Get form data
+        const formData = await req.formData();
+        const file = formData.get("avatar") as File;
+
+        if (!file) {
+            return NextResponse.json({
+                error: "No file uploaded"
+            })
+        }
+
+        // 3. Upload to cloudinary
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const uploadResponse: any = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: "LMS_PORTAL",
+                    public_id: `user-${authResult.user.userId}`,
+                    transformation: [{ width: 200, height: 200, crop: "fill" }]
+                },
+                (err, result) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve(result);
+                    }
+                }
+            );
+            uploadStream.end(buffer);
+        });
+        // 4. Update user's photoURL in database
+        const updatedUser = await User.findByIdAndUpdate(
+            authResult.user.userId,
+            { photoURL: uploadResponse.secure_url },
+            { new: true }
+        ).select("-password");
+
+        return NextResponse.json({
+            success: true,
+            user: updatedUser
+        })
+    } catch (error: any) {
+        console.error("PROFILE PHOTO UPDATE ERROR:", error.message);
+        return NextResponse.json({ error: "Failed to update profile photo" }, { status: 500 });
+    }
+}

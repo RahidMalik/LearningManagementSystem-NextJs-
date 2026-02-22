@@ -1,3 +1,4 @@
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -5,15 +6,18 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'ui-avatars.com',
-        port: '',
         pathname: '/api/**',
       },
       {
         protocol: 'https',
-        hostname: 'lh3.googleusercontent.com', // Google Photos ke liye
-        port: '',
+        hostname: 'res.cloudinary.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      }
     ],
   },
 };

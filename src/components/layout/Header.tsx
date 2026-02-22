@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import axios from "axios";
 import {
   Search,
   Bell,
@@ -10,7 +11,7 @@ import {
   ShieldCheck,
   MessageSquare,
   BookOpen,
-  Info,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -30,15 +31,45 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { api } from "@/services/api";
 
 export const Header = () => {
   const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
+
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        // --- FETCHING DATA FROM BACKEND ---
+        const res = await api.getProfile();
+
+        if (res?.success || res?.data?.success) {
+          setUser(res.success ? res.user : res.data.user);
+        }
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
   }, []);
 
   if (!mounted) return null;
+
+  // Initial for Fallback (e.g., "R" from "Rahid")
+  const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur">
@@ -144,7 +175,6 @@ export const Header = () => {
               </button>
             </Link>
 
-            {/* Notifications Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="p-2 hover:bg-slate-50 hover:text-[#0a348f] rounded-full relative outline-none">
@@ -162,7 +192,6 @@ export const Header = () => {
                   Notifications
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-
                 <div className="max-h-64 overflow-y-auto">
                   <DropdownMenuItem className="p-3 rounded-xl cursor-pointer hover:bg-slate-50">
                     <div className="flex gap-3">
@@ -180,16 +209,6 @@ export const Header = () => {
                     </div>
                   </DropdownMenuItem>
                 </div>
-
-                <DropdownMenuSeparator className="my-2" />
-
-                <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
-                  <Link href="/notifications" className="w-full">
-                    <button className="w-full py-3 text-sm font-bold text-[#0a348f] hover:bg-blue-50 rounded-xl transition-colors">
-                      View all notifications
-                    </button>
-                  </Link>
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -200,24 +219,45 @@ export const Header = () => {
             </Link>
           </div>
 
-          {/* Profile Dropdown */}
+          {/* --- PROFILE DROPDOWN WITH DYNAMIC AVATAR --- */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="h-9 w-9 rounded-full bg-[#0a348f] flex items-center justify-center text-white font-bold cursor-pointer hover:scale-105 transition-transform shadow-md outline-none">
-                R
+              <div className="cursor-pointer outline-none hover:scale-105 transition-transform">
+                <Avatar className="h-9 w-9 border-2 border-white shadow-md">
+                  {/* PhotoURL from Backend */}
+                  <AvatarImage
+                    src={user?.photoURL}
+                    alt={user?.name}
+                    className="object-cover"
+                  />
+
+                  {/* Fallback Initial if No Image or Loading */}
+                  <AvatarFallback className="bg-[#0a348f] text-white font-bold">
+                    {loading ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      userInitial
+                    )}
+                  </AvatarFallback>
+                </Avatar>
               </div>
             </DropdownMenuTrigger>
+
             <DropdownMenuContent
               align="end"
               className="w-64 rounded-2xl p-2 mt-2 shadow-2xl border-slate-100"
             >
               <DropdownMenuLabel className="font-normal p-4">
                 <div className="flex flex-col space-y-1">
+                  {/* DYNAMIC NAME FROM BACKEND */}
                   <p className="text-sm font-bold text-slate-800">
-                    Rahid Malik
+                    {loading ? "Loading..." : user?.name || "User Name"}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    rahid@example.com
+                  {/* DYNAMIC EMAIL FROM BACKEND */}
+                  <p className="text-xs text-muted-foreground truncate">
+                    {loading
+                      ? "Fetching..."
+                      : user?.email || "email@example.com"}
                   </p>
                 </div>
               </DropdownMenuLabel>
@@ -225,7 +265,7 @@ export const Header = () => {
               <div className="p-1">
                 <DropdownMenuItem
                   asChild
-                  className="cursor-pointer py-3 rounded-xl"
+                  className="cursor-pointer py-3 rounded-xl hover:bg-slate-50"
                 >
                   <Link href="/profile" className="flex items-center">
                     <User className="mr-3 h-4 w-4 text-[#0a348f]" />
@@ -236,7 +276,7 @@ export const Header = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   asChild
-                  className="cursor-pointer py-3 rounded-xl"
+                  className="cursor-pointer py-3 rounded-xl hover:bg-slate-50"
                 >
                   <Link href="/admin" className="flex items-center">
                     <ShieldCheck className="mr-3 h-4 w-4 text-amber-500" />
@@ -247,7 +287,7 @@ export const Header = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   asChild
-                  className="cursor-pointer py-3 rounded-xl"
+                  className="cursor-pointer py-3 rounded-xl hover:bg-slate-50"
                 >
                   <Link href="/settings" className="flex items-center">
                     <Settings className="mr-3 h-4 w-4 text-slate-400" />
