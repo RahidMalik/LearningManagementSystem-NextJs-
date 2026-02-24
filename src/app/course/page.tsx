@@ -1,12 +1,10 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { CourseCard } from "@/components/shared/CourseCard";
 import Link from "next/link";
 import { Loader2, AlertCircle, BookOpen } from "lucide-react";
 import { api } from "@/services/api";
 
-// TypeScript interface for Course
 export interface ICourse {
   id: string;
   title: string;
@@ -28,7 +26,7 @@ export default function StudentDashboard() {
         setLoading(true);
         const res = await api.getMyCourses();
 
-        if (res.success && res.data && res.data.length > 0) {
+        if (res.success && res.data) {
           const formattedData = res.data.map((course: any) => ({
             ...course,
             id: course._id,
@@ -36,28 +34,10 @@ export default function StudentDashboard() {
 
           setCourses(formattedData);
         } else {
-          const mockData: ICourse[] = [
-            {
-              id: "1",
-              title: "Graphic Design Masterclass",
-              instructor: "Rahid Malik",
-              progress: 65,
-              image: "/Tumbnailimages/GraphicDesign.png",
-            },
-            {
-              id: "2",
-              title: "Full Stack Web Dev (MERN)",
-              instructor: "Cybex Team",
-              progress: 90,
-              image: "/Tumbnailimages/Uiux.png",
-            },
-          ];
-          setCourses(mockData);
+          setCourses([]);
         }
-
-        setError(null);
       } catch (err: any) {
-        setError("Failed to load your courses. Please try again.");
+        setError("Failed to load your courses.");
       } finally {
         setLoading(false);
       }
@@ -66,9 +46,6 @@ export default function StudentDashboard() {
     fetchMyCourses();
   }, []);
 
-  // 3. Conditional Rendering
-
-  // Case A: Jab data fetch ho raha ho
   if (loading) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center bg-slate-50 space-y-4">
@@ -80,7 +57,6 @@ export default function StudentDashboard() {
     );
   }
 
-  // Case B: Agar API fail ho jaye
   if (error) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center bg-slate-50 space-y-4">
@@ -96,7 +72,6 @@ export default function StudentDashboard() {
     );
   }
 
-  // Case C: Agar course fetch hue lekin user ne kisi mein enroll nahi kiya
   if (courses.length === 0) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center bg-slate-50 space-y-4">
@@ -115,7 +90,6 @@ export default function StudentDashboard() {
     );
   }
 
-  // Case D: Jab sab sahi ho aur courses mil jayein
   return (
     <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
       <div className="space-y-2">

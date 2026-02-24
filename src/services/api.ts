@@ -1,8 +1,37 @@
 import { apiClient } from "@/types/apiClient";
 import type { ApiResponse, AuthResponse } from "@/types/auth";
 
+export interface IMessage {
+    _id: string;
+    conversationId: string;
+    senderId: string;
+    receiverId: string;
+    text: string;
+    seen: boolean;
+    createdAt: string;
+}
+
+export interface IConversation {
+    _id: string;
+    participants: any[];
+    lastMessage: string;
+    updatedAt: string;
+}
+
+// --- COURSE TYPES ---
+export interface ICourse {
+    _id: string;
+    title: string;
+    instructor: string;
+    price: number;
+    image: string;
+    progress?: number;
+    description?: string;
+}
 export const api = {
-    // 1. Manual register logic {name,email,password}
+    // ==========================================
+    //           Authentication Logic
+    // ==========================================
     register: async (name: string, email: string, password: string): Promise<ApiResponse<AuthResponse>> => {
         const response = await apiClient.request<AuthResponse>('/auth/register', {
             method: "POST",
@@ -50,6 +79,9 @@ export const api = {
     logout: async () => {
         apiClient.setToken(null)
     },
+    // ==========================================
+    //           Profile Logic
+    // ==========================================
     getProfile: async () => {
         return await apiClient.request('/me', {
             method: 'GET',
@@ -69,5 +101,62 @@ export const api = {
             method: "POST",
             data: formData,
         });
-    }
+
+        // ==========================================
+        //           Messages Logic
+        // ==========================================
+    }, getConversations: async (): Promise<ApiResponse<IConversation[]>> => {
+        return await apiClient.request<IConversation[]>('/messages/conversation', {
+            method: 'GET',
+        });
+    },
+
+    // 2. Fetch messages for a specific chat
+    getMessages: async (convId: string): Promise<ApiResponse<IMessage[]>> => {
+        return await apiClient.request<IMessage[]>(`/messages?convId=${convId}`, {
+            method: 'GET',
+        });
+    },
+
+    // 3. Send a new message
+    sendMessage: async (payload: {
+        senderId: string;
+        receiverId: string;
+        text: string;
+        conversationId?: string;
+    }): Promise<ApiResponse<IMessage>> => {
+        return await apiClient.request<IMessage>('/messages', {
+            method: 'POST',
+            data: payload,
+        });
+    },
+
+    // 4. Mark message as seen
+    markAsSeen: async (messageId: string): Promise<ApiResponse<{ success: boolean }>> => {
+        return await apiClient.request<{ success: boolean }>('/messages/seen', {
+            method: 'PUT',
+            data: { messageId },
+        });
+    },
+
+
+    // ==========================================
+    //           COURSES API LOGIC
+    // ==========================================
+    getMyCourses: async (): Promise<ApiResponse<ICourse[]>> => {
+        return await apiClient.request("/course/my-courses", {
+            method: "GET",
+        });
+    },
+    getAllCourses: async (): Promise<ApiResponse<ICourse[]>> => {
+        return await apiClient.request("/course/all", {
+            method: "GET",
+        });
+    },
+    getCourseDetails: async (courseId: string): Promise<ApiResponse<ICourse>> => {
+        return await apiClient.request(`/course/${courseId}`, {
+            method: "GET"
+        })
+    },
+
 }

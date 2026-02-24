@@ -9,7 +9,9 @@ import cloudinary from "@/configs/cloudinary";
 // --- Validations Helpers ---
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-
+// ==========================================
+//  2. Autentication Controller
+// ==========================================
 export const registerUser = async (req: Request) => {
     try {
         await dbconnect();
@@ -152,8 +154,9 @@ export const syncFirebaseUser = async (req: Request) => {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
-
-// 2. Update Profile Controller
+// ==========================================
+//  2. Update Profile Controller
+// ==========================================
 export const updateProfile = async (req: Request) => {
     try {
         await dbconnect();
@@ -178,8 +181,9 @@ export const updateProfile = async (req: Request) => {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
-
-// 4.  Get me controller (Profile Fetching)
+// ==========================================
+//  3.  Get me controller (Profile Fetching)
+// ==========================================
 export const getMe = async (req: Request) => {
     try {
         await dbconnect();
@@ -207,7 +211,9 @@ export const getMe = async (req: Request) => {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 };
-// 5. Update Profile Photo Controller
+// ==========================================
+//   4. Update Profile Photo Controller
+// ==========================================
 export const UpdateProfilePhoto = async (req: Request) => {
     try {
         await dbconnect();

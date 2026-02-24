@@ -106,6 +106,12 @@ export const Header = () => {
                       My Courses
                     </Link>
                     <Link
+                      href="/mycourses"
+                      className="text-lg font-semibold text-slate-700"
+                    >
+                      My Courses
+                    </Link>
+                    <Link
                       href="/explore"
                       className="text-lg font-semibold text-slate-700"
                     >
@@ -135,19 +141,13 @@ export const Header = () => {
 
           <nav className="hidden lg:flex items-center gap-6 text-sm font-bold ml-8 text-slate-600">
             <Link href="/" className="hover:text-[#0a348f] transition-colors">
+              Courses
+            </Link>
+            <Link
+              href="/mycourses"
+              className="hover:text-[#0a348f] transition-colors"
+            >
               My Courses
-            </Link>
-            <Link
-              href="/explore"
-              className="hover:text-[#0a348f] transition-colors"
-            >
-              Explore
-            </Link>
-            <Link
-              href="/mentors"
-              className="hover:text-[#0a348f] transition-colors"
-            >
-              Mentors
             </Link>
           </nav>
         </div>
