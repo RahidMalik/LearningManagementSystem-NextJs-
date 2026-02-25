@@ -69,7 +69,7 @@ export const Header = () => {
   if (!mounted) return null;
 
   // Initial for Fallback (e.g., "R" from "Rahid")
-  const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
+  const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : "R";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur">
@@ -100,23 +100,18 @@ export const Header = () => {
                   </SheetHeader>
                   <nav className="flex flex-col gap-4 mt-8 pl-2">
                     <Link
-                      href="/"
+                      href="/course"
+                      className="text-lg font-semibold text-slate-700"
+                    >
+                      Courses
+                    </Link>
+                    <Link
+                      href="/my-courses"
                       className="text-lg font-semibold text-slate-700"
                     >
                       My Courses
                     </Link>
-                    <Link
-                      href="/mycourses"
-                      className="text-lg font-semibold text-slate-700"
-                    >
-                      My Courses
-                    </Link>
-                    <Link
-                      href="/explore"
-                      className="text-lg font-semibold text-slate-700"
-                    >
-                      Explore
-                    </Link>
+
                     <Link
                       href="/messages"
                       className="text-lg font-semibold text-slate-700"
@@ -140,11 +135,14 @@ export const Header = () => {
           </div>
 
           <nav className="hidden lg:flex items-center gap-6 text-sm font-bold ml-8 text-slate-600">
-            <Link href="/" className="hover:text-[#0a348f] transition-colors">
+            <Link
+              href="/course"
+              className="hover:text-[#0a348f] transition-colors"
+            >
               Courses
             </Link>
             <Link
-              href="/mycourses"
+              href="/my-courses"
               className="hover:text-[#0a348f] transition-colors"
             >
               My Courses

@@ -10,14 +10,12 @@ export interface IMessage {
     seen: boolean;
     createdAt: string;
 }
-
 export interface IConversation {
     _id: string;
     participants: any[];
     lastMessage: string;
     updatedAt: string;
 }
-
 // --- COURSE TYPES ---
 export interface ICourse {
     _id: string;
@@ -27,6 +25,16 @@ export interface ICourse {
     image: string;
     progress?: number;
     description?: string;
+}
+// --- COURSE ADMINTYPES ---
+export interface ICourseAdmin {
+    _id: string;
+    name: string;
+    price: number;
+    thumbnail: string;
+    videoUrl?: string;
+    videoName?: string;
+    status?: string;
 }
 export const api = {
     // ==========================================
@@ -148,8 +156,8 @@ export const api = {
             method: "GET",
         });
     },
-    getAllCourses: async (): Promise<ApiResponse<ICourse[]>> => {
-        return await apiClient.request("/course/all", {
+    getAllCourses: async (): Promise<ApiResponse<{ courses: ICourse[] }>> => {
+        return await apiClient.request("/courses/all-courses", {
             method: "GET",
         });
     },
@@ -158,5 +166,53 @@ export const api = {
             method: "GET"
         })
     },
+    // ==========================================
+    //           ADMIN CREATE COURSES
+    // ==========================================
+    createCourse: async (
+        formData: FormData,
+        onProgress?: (percent: number) => void // Callback add kiya
+    ): Promise<ApiResponse<{ course: ICourseAdmin }>> => {
+        return await apiClient.request("/admin/courses/create-courses", {
+            method: "POST",
+            data: formData,
+            onUploadProgress: (progressEvent: any) => {
+                if (onProgress && progressEvent.total) {
+                    const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    onProgress(percent);
+                }
+            }
+        })
+    },
+    // ==========================================
+    //           UPDATE COURSES
+    // ==========================================
+    updateCourse: async (
+        formData: FormData,
+        courseId: string,
+        onProgress?: (percent: number) => void
+    ): Promise<ApiResponse<{ course: ICourseAdmin }>> => {
+        return await apiClient.request(`/admin/courses/${courseId}`, {
+            method: "PUT",
+            data: formData,
+            onUploadProgress: (progressEvent: any) => {
+                if (onProgress && progressEvent.total) {
+                    const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    onProgress(percent);
+                }
+            }
+        })
+    },
+    // ==========================================
+    //           DELETE COURSES
+    // ==========================================
+    deleteCourse: async (courseId: string): Promise<ApiResponse<ICourseAdmin>> => {
+        return await apiClient.request(`/admin/courses/${courseId}`, {
+            method: "DELETE",
+        })
+    },
+    // ==========================================
+    //           UPDATE COURSES
+    // ==========================================
 
 }

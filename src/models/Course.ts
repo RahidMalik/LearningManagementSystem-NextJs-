@@ -15,8 +15,12 @@ const CourseSchema = new mongoose.Schema({
     category: {
         type: String,
         required: true,
+        default: "General"
     },
     thumbnail: {
+        type: String
+    },
+    videoUrl: {
         type: String
     },
     instructor: {
@@ -29,4 +33,4 @@ const CourseSchema = new mongoose.Schema({
     }
 })
 
-export const Course = mongoose.model("Course", CourseSchema)
+export const Course = mongoose.models.Course || mongoose.model("Course", CourseSchema);
