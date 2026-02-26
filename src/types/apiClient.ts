@@ -21,7 +21,9 @@ class ApiClient {
         this.axiosInstance.interceptors.response.use(
             (response) => response.data,
             (error) => {
-                const message = error.response?.data?.error || error.response?.data?.message || "Something went wrong";
+                const backendError = error.response?.data?.error || error.response?.data?.message;
+                const message = backendError || error.message || "Something went wrong";
+                console.error("API_ERROR_DETAILS:", error.response?.data);
                 return Promise.reject(new Error(message));
             }
         );

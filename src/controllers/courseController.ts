@@ -12,7 +12,7 @@ interface CourseData {
 }
 
 // ============================================================
-// --- HELPER: Cloudinary Upload (Sab ke liye available hai) ---
+// --- HELPER: Cloudinary Upload ---
 // ============================================================
 const uploadToCloudinary = async (file: File, resourceType: "image" | "video"): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
@@ -32,7 +32,7 @@ const uploadToCloudinary = async (file: File, resourceType: "image" | "video"): 
                 resolve(result?.secure_url || "");
             }
         );
-        uploadStream.end(buffer); // ✅ Correctly placed inside the promise logic
+        uploadStream.end(buffer);
     });
 };
 
@@ -54,7 +54,6 @@ export const createCourse = async (req: Request) => {
             return NextResponse.json({ error: "Missing required fields!" }, { status: 400 });
         }
 
-        // Parallel Upload for speed
         const [thumbnailUrl, videoUrl] = await Promise.all([
             uploadToCloudinary(thumbnailFile, "image"),
             uploadToCloudinary(videoFile, "video")
@@ -76,7 +75,6 @@ export const createCourse = async (req: Request) => {
         }, { status: 201 });
 
     } catch (error: any) {
-        console.error("CREATE_ERROR:", error.message);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
@@ -84,36 +82,38 @@ export const createCourse = async (req: Request) => {
 // ==========================================
 // 2. Update Course (Admin Only)
 // ==========================================
-export const updateCourse = async (req: Request, { params }: { params: { courseId: string } }) => {
+export const updateCourse = async (req: Request, { params }: { params: any }) => {
     try {
-        const { courseId } = params;
-        if (!mongoose.Types.ObjectId.isValid(courseId)) {
-            return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
+        await dbConnect();
+
+        const resolvedParams = await params;
+        const id = resolvedParams.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return NextResponse.json({ error: "Invalid Course ID Format" }, { status: 400 });
+        }
+
+        const courseExist = await Course.findById(id);
+        if (!courseExist) {
+            return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
         }
 
         const formData = await req.formData();
-        await dbConnect();
-
-        const courseExist = await Course.findById(courseId);
-        if (!courseExist) return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
-
         let thumbnailUrl = courseExist.thumbnail;
         let videoUrl = courseExist.videoUrl;
 
-        // Check for new thumbnail
         const newThumbnail = formData.get("thumbnail");
         if (newThumbnail instanceof File && newThumbnail.size > 0) {
             thumbnailUrl = await uploadToCloudinary(newThumbnail, "image");
         }
 
-        // Check for new video
         const newVideo = formData.get("videoFile");
         if (newVideo instanceof File && newVideo.size > 0) {
             videoUrl = await uploadToCloudinary(newVideo, "video");
         }
 
         const updatedCourse = await Course.findByIdAndUpdate(
-            courseId,
+            id,
             {
                 title: formData.get("title") || courseExist.title,
                 price: Number(formData.get("price")) || courseExist.price,
@@ -131,7 +131,6 @@ export const updateCourse = async (req: Request, { params }: { params: { courseI
         }, { status: 200 });
 
     } catch (error: any) {
-        console.error("UPDATE_ERROR:", error.message);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
@@ -139,18 +138,27 @@ export const updateCourse = async (req: Request, { params }: { params: { courseI
 // ==========================================
 // 3. Delete Course (Admin Only)
 // ==========================================
-export const deleteCourse = async (req: Request, { params }: { params: { id: string } }) => {
+export const deleteCourse = async (req: Request, { params }: { params: any }) => {
     try {
-        const { id } = params;
         await dbConnect();
+        const resolvedParams = await params;
+        const id = resolvedParams.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return NextResponse.json({ error: "Invalid ID Format" }, { status: 400 });
+        }
+
         const courseDelete = await Course.findByIdAndDelete(id);
 
-        if (!courseDelete) return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
+        if (!courseDelete) {
+            return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
+        }
 
         return NextResponse.json({
             success: true,
             message: "Course deleted successfully"
-        });
+        }, { status: 200 });
+
     } catch (error: any) {
         return NextResponse.json({ success: false, message: error.message }, { status: 500 });
     }
@@ -174,17 +182,45 @@ export const getAllCourses = async () => {
 };
 
 // ==========================================
-// 5. Enroll Course (Private)
+// 5. Get Single Course Details (For Students)
+// ==========================================
+export const getCourseDetails = async (req: Request, { params }: { params: any }) => {
+    try {
+        await dbConnect();
+        const { id } = await params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
+        }
+
+        const course = await Course.findById(id);
+
+        if (!course) {
+            return NextResponse.json({ error: "Course not found!" }, { status: 404 });
+        }
+
+        return NextResponse.json({
+            success: true,
+            data: course
+        }, { status: 200 });
+
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+};
+
+// ==========================================
+// 6. Enroll Course (Private)
 // ==========================================
 export const enrollCourse = async (req: CourseData) => {
     try {
+        await dbConnect();
+
         const auth = await enrollmentGuard(req);
         if (!auth.success) return auth.response;
 
         const userId = auth.userId;
         const { courseId } = req;
-
-        await dbConnect();
 
         if (!mongoose.Types.ObjectId.isValid(courseId)) {
             return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });

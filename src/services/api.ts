@@ -151,18 +151,18 @@ export const api = {
     // ==========================================
     //           COURSES API LOGIC
     // ==========================================
-    getMyCourses: async (): Promise<ApiResponse<ICourse[]>> => {
-        return await apiClient.request("/course/my-courses", {
-            method: "GET",
-        });
-    },
     getAllCourses: async (): Promise<ApiResponse<{ courses: ICourse[] }>> => {
         return await apiClient.request("/courses/all-courses", {
             method: "GET",
         });
     },
+    getMyCourses: async (): Promise<ApiResponse<ICourse[]>> => {
+        return await apiClient.request("/courses/my-courses", {
+            method: "GET",
+        });
+    },
     getCourseDetails: async (courseId: string): Promise<ApiResponse<ICourse>> => {
-        return await apiClient.request(`/course/${courseId}`, {
+        return await apiClient.request(`/courses/${courseId}`, {
             method: "GET"
         })
     },
@@ -211,8 +211,5 @@ export const api = {
             method: "DELETE",
         })
     },
-    // ==========================================
-    //           UPDATE COURSES
-    // ==========================================
 
 }

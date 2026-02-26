@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import {
+  Loader2,
   PlayCircle,
   Award,
   Star,
@@ -15,13 +15,59 @@ import {
   User,
   CheckCircle2,
   ChevronLeft,
+  Send,
 } from "lucide-react";
+import Image from "next/image";
+import { api, ICourse } from "@/services/api";
 
 export default function CourseDetailPage() {
-  const [userRating, setUserRating] = useState(0);
+  const [course, setCourse] = useState<ICourse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [userRating, setUserRating] = useState(0); // Star rating state
+  const [reviewText, setReviewText] = useState(""); // Textarea state
+
   const params = useParams();
   const router = useRouter();
-  const id = params.id;
+  const id = params.id as string;
+
+  useEffect(() => {
+    const fetchCourseData = async () => {
+      try {
+        setLoading(true);
+        // "api.getCourseDetails" ya jo bhi aapka function name hai
+        const res = await api.getCourseDetails(id);
+        if (res.success) {
+          // ?? null use kiya taake undefined ka error na aaye
+          setCourse(res.data ?? null);
+        }
+      } catch (error) {
+        console.error("Error fetching course:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) fetchCourseData();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-white">
+        <Loader2 className="animate-spin text-[#0a348f] mb-4" size={40} />
+        <p className="font-bold text-slate-400 uppercase tracking-widest text-xs">
+          Fetching Course...
+        </p>
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div className="h-screen flex items-center justify-center font-bold text-red-500">
+        Course not found!
+      </div>
+    );
+  }
 
   return (
     <div className="bg-slate-50 min-h-screen">
@@ -33,17 +79,19 @@ export default function CourseDetailPage() {
         >
           <ChevronLeft size={24} />
         </button>
-        <h1 className="font-bold text-lg text-slate-800">Course Details</h1>
+        <h1 className="font-bold text-lg text-slate-800 line-clamp-1">
+          {course.title}
+        </h1>
       </div>
 
       <div className="max-w-7xl mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 mb-20">
-        {/* --- LEFT COLUMN: VIDEO & CONTENT --- */}
+        {/* --- LEFT COLUMN --- */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 1. Video Player */}
+          {/* Video Placeholder */}
           <div className="relative aspect-video rounded-[2.5rem] overflow-hidden bg-black shadow-2xl group border-4 border-white">
             <Image
-              src="/video/CourseVideo.png"
-              alt="Course Thumbnail"
+              src={course.image || "/video/CourseVideo.png"}
+              alt={course.title}
               fill
               className="object-cover opacity-70 transition-transform duration-700 group-hover:scale-105"
             />
@@ -52,7 +100,6 @@ export default function CourseDetailPage() {
             </div>
           </div>
 
-          {/* 2. Tabs System */}
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="w-full justify-start bg-transparent border-b rounded-none h-14 gap-8 overflow-x-auto no-scrollbar">
               <TabsTrigger
@@ -75,133 +122,102 @@ export default function CourseDetailPage() {
               </TabsTrigger>
             </TabsList>
 
-            {/* TAB: OVERVIEW */}
-            <TabsContent
-              value="overview"
-              className="py-8 space-y-6 animate-in fade-in duration-500"
-            >
-              <div className="flex justify-between items-start">
-                <div className="space-y-2">
+            {/* OVERVIEW TAB */}
+            <TabsContent value="overview" className="py-8 space-y-6">
+              <div className="flex justify-between items-start flex-wrap gap-4">
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Badge className="bg-[#0a348f]">New Release</Badge>
+                    <Badge
+                      variant="outline"
+                      className="border-[#0a348f] text-[#0a348f]"
+                    >
+                      Best Seller
+                    </Badge>
+                  </div>
                   <h1 className="text-4xl font-extrabold text-slate-900 leading-tight">
-                    {id === "1" ? "Graphic Design Masterclass" : "Course " + id}
+                    {course.title}
                   </h1>
                   <p className="text-muted-foreground flex items-center gap-2 text-lg">
                     <User size={20} className="text-[#0a348f]" />
                     By{" "}
                     <span className="font-semibold text-[#0a348f]">
-                      Syed Hasnain
+                      {course.instructor}
                     </span>
                   </p>
                 </div>
                 <div className="bg-[#0a348f] text-white px-6 py-2 rounded-2xl text-3xl font-bold shadow-lg shadow-blue-200">
-                  $72
+                  PKR {course.price}
                 </div>
               </div>
-
               <p className="text-slate-600 leading-relaxed text-xl">
-                Master the world of visual communication. This course takes you
-                from a complete beginner to a professional designer using
-                industry-standard tools.
+                {course.description ||
+                  "Master the skills needed for this course with our comprehensive curriculum."}
               </p>
+            </TabsContent>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {["Learn UI/UX Principles", "Logo & Branding Projects"].map(
-                  (item, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-100"
-                    >
-                      <CheckCircle2 className="text-green-500" size={20} />
-                      <span className="font-medium text-slate-700">{item}</span>
-                    </div>
-                  ),
-                )}
+            {/* LESSONS TAB */}
+            <TabsContent value="lessons" className="py-8">
+              <div className="p-8 border-2 border-dashed border-slate-200 rounded-[2rem] text-center">
+                <Clock className="mx-auto text-slate-300 mb-4" size={48} />
+                <p className="text-slate-500 font-medium">
+                  Curriculum is being updated for {course.title}.
+                </p>
               </div>
             </TabsContent>
 
-            {/* TAB: LESSONS */}
-            <TabsContent
-              value="lessons"
-              className="py-8 space-y-4 animate-in slide-in-from-bottom-4 duration-500"
-            >
-              {[1, 2, 3].map((ch) => (
-                <div
-                  key={ch}
-                  className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:border-[#0a348f] transition-all"
-                >
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-bold text-xl">
-                      Chapter {ch}: Fundamentals
-                    </h3>
-                    <Badge className="bg-blue-50 text-[#0a348f] border-none">
-                      4 Videos
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </TabsContent>
-
-            {/* TAB: REVIEWS (WITH TEXTAREA) */}
-            <TabsContent
-              value="reviews"
-              className="py-8 space-y-10 animate-in fade-in duration-500"
-            >
+            {/* REVIEWS TAB (Stars and Textarea added here) */}
+            <TabsContent value="reviews" className="py-8 space-y-8">
               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
-                <h3 className="font-bold text-2xl text-slate-800">
-                  Share Your Experience
-                </h3>
-
-                <div className="flex items-center gap-2 text-amber-400">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      size={28}
-                      className="cursor-pointer transition-transform hover:scale-110"
-                      fill={star <= userRating ? "currentColor" : "none"}
-                      onClick={() => setUserRating(star)}
-                    />
-                  ))}
-                  <span className="text-slate-400 font-bold ml-2">
-                    ({userRating}/5)
-                  </span>
+                <div>
+                  <h3 className="text-2xl font-black text-slate-800 uppercase italic">
+                    Rate this Course
+                  </h3>
+                  <p className="text-slate-500 text-sm">
+                    Your feedback helps other students.
+                  </p>
                 </div>
 
-                <Textarea
-                  placeholder="What did you like or dislike?..."
-                  className="rounded-[1.5rem] border-none bg-slate-50 min-h-30 focus-visible:ring-2 focus-visible:ring-[#0a348f] p-5 text-slate-700 shadow-inner resize-none"
-                />
+                {/* Star Rating Logic */}
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setUserRating(star)}
+                      className="transition-transform active:scale-90"
+                    >
+                      <Star
+                        size={36}
+                        className={`${
+                          star <= userRating
+                            ? "text-yellow-400 fill-yellow-400"
+                            : "text-slate-200"
+                        } transition-colors`}
+                      />
+                    </button>
+                  ))}
+                  {userRating > 0 && (
+                    <span className="ml-4 font-bold text-[#0a348f] self-center">
+                      {userRating}/5
+                    </span>
+                  )}
+                </div>
 
-                <div className="flex justify-end">
-                  <Button className="bg-[#0a348f] hover:bg-blue-800 rounded-2xl px-12 py-7 font-bold text-lg shadow-xl shadow-blue-100">
-                    Post Review
+                {/* Review Textarea */}
+                <div className="space-y-4">
+                  <Textarea
+                    placeholder="Tell us what you liked or disliked about this course..."
+                    value={reviewText}
+                    onChange={(e) => setReviewText(e.target.value)}
+                    className="min-h-37.5 rounded-[1.5rem] border-slate-200 focus:ring-[#0a348f] focus:border-[#0a348f] p-4 text-lg"
+                  />
+                  <Button
+                    className="bg-[#0a348f] hover:bg-blue-900 text-white rounded-full px-8 py-6 h-auto font-bold flex gap-2"
+                    disabled={!userRating}
+                  >
+                    Submit Review <Send size={18} />
                   </Button>
                 </div>
-              </div>
-
-              {/* Feedback List */}
-              <div className="space-y-6">
-                {[1, 2].map((review) => (
-                  <div key={review} className="flex gap-5 p-2">
-                    <div className="h-16 w-16 rounded-2xl bg-slate-200 shrink-0 flex items-center justify-center font-black text-slate-400 text-xl border-2 border-white">
-                      {review === 1 ? "FA" : "UA"}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <h4 className="font-bold text-lg text-slate-800">
-                          Fawais Ahmad
-                        </h4>
-                        <div className="flex text-amber-400 gap-0.5">
-                          {[...Array(5)].map((_, i) => (
-                            <Star key={i} size={14} fill="currentColor" />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-slate-600 leading-relaxed italic">
-                        "Brilliant teaching way!"
-                      </p>
-                    </div>
-                  </div>
-                ))}
               </div>
             </TabsContent>
           </Tabs>
@@ -209,17 +225,17 @@ export default function CourseDetailPage() {
 
         {/* --- RIGHT COLUMN: SIDEBAR --- */}
         <div className="lg:col-span-1">
-          <div className="sticky top-24 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-2xl space-y-8 overflow-hidden">
+          <div className="sticky top-24 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-2xl space-y-8">
             <h2 className="font-black text-2xl text-slate-800 tracking-tight uppercase">
               Course Features
             </h2>
 
             <div className="grid grid-cols-2 gap-4">
               {[
-                { icon: PlayCircle, label: "80+ Lectures" },
+                { icon: PlayCircle, label: "Videos" },
                 { icon: Award, label: "Certificate" },
-                { icon: Clock, label: "12 Hours" },
-                { icon: CheckCircle2, label: "Lifetime Access" },
+                { icon: Clock, label: "Lifetime" },
+                { icon: CheckCircle2, label: "Access" },
               ].map((item, idx) => (
                 <div
                   key={idx}
@@ -236,15 +252,15 @@ export default function CourseDetailPage() {
               ))}
             </div>
 
-            <div className="space-y-4 pt-6">
+            <div className="space-y-4 pt-6 border-t border-slate-100">
               <Button
                 onClick={() => router.push(`/payment/${id}`)}
-                className="w-full bg-[#0a348f] hover:bg-blue-900 text-white py-8 rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-300 uppercase italic active:scale-95 transition-transform"
+                className="w-full bg-[#0a348f] hover:bg-blue-900 text-white py-8 rounded-[2rem] font-black text-xl shadow-2xl uppercase italic active:scale-95 transition-transform"
               >
                 Enroll Now
               </Button>
               <p className="text-center text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">
-                30-Day Money-Back Guarantee
+                Secure Payment Gateway
               </p>
             </div>
           </div>

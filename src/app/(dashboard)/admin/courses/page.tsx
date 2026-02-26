@@ -68,15 +68,21 @@ export default function AdminCourses() {
   };
 
   const handleEdit = (course: any) => {
-    // 🛡️ ID Sanitization: Kisi bhi kism ka extra character (jaise :1) remove karein
-    const sanitizedId = course._id.toString().replace(/[:\s].*/, "");
+    const rawId = course._id?.toString() || "";
+    const sanitizedId =
+      rawId.match(/[0-9a-fA-F]{24}/)?.[0] || rawId.replace(/[:\s].*/, "");
+
+    if (!sanitizedId) {
+      toast.error("Critical: Could not parse Course ID");
+      return;
+    }
 
     setEditId(sanitizedId);
     setFormData({
-      name: course.title,
-      price: course.price.toString(),
-      category: course.category,
-      thumbnail: course.thumbnail,
+      name: course.title || "",
+      price: (course.price || 0).toString(),
+      category: course.category || "Web Development",
+      thumbnail: course.thumbnail || null,
       videoFile: null,
     });
     setIsModalOpen(true);
@@ -136,27 +142,24 @@ export default function AdminCourses() {
 
       const handleProgress = (percent: number) => {
         setUploadProgress(percent);
-        if (percent < 100) {
-          setUploadStatus(`Uploading: ${percent}%`);
-        } else {
-          setUploadStatus("Finalizing on Cloudinary...");
-        }
+        setUploadStatus(
+          percent < 100 ? `Uploading: ${percent}%` : "Finalizing on Cloud...",
+        );
       };
 
       if (editId) {
-        // Double check ke ID clean hai bhejte waqt
-        const finalId = editId.replace(/[:\s].*/, "");
+        const finalId = editId.trim();
         await api.updateCourse(data, finalId, handleProgress);
+        toast.success("Course Updated Successfully!");
       } else {
         await api.createCourse(data, handleProgress);
+        toast.success("Course Published Successfully!");
       }
 
-      toast.success(editId ? "Course Updated!" : "Course Published!");
       closeModal();
       fetchCourses();
     } catch (error: any) {
-      console.error("Submit Error:", error);
-      toast.error(error?.response?.data?.message || "Operation Failed");
+      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -232,7 +235,7 @@ export default function AdminCourses() {
                   </div>
                   <div className="flex items-center gap-3 pr-4">
                     <span className="text-2xl font-black text-[#0a348f] mr-4">
-                      ${course.price}
+                      PKR {course.price}
                     </span>
 
                     <button
@@ -291,7 +294,7 @@ export default function AdminCourses() {
                       </h2>
                       <div className="w-full max-w-sm bg-slate-100 h-3 rounded-full overflow-hidden border shadow-inner">
                         <motion.div
-                          className="h-full bg-gradient-to-r from-blue-600 to-[#0a348f]"
+                          className="h-full bg-linear-to-r from-blue-600 to-[#0a348f]"
                           initial={{ width: 0 }}
                           animate={{ width: `${uploadProgress}%` }}
                         />
@@ -331,7 +334,7 @@ export default function AdminCourses() {
                     />
                     <input
                       required
-                      placeholder="Price ($)"
+                      placeholder="Price (PKR)"
                       type="number"
                       className="p-4 bg-slate-50 rounded-2xl outline-none border-2 border-transparent focus:border-blue-100 font-bold"
                       value={formData.price}
