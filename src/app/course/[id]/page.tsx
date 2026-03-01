@@ -34,10 +34,8 @@ export default function CourseDetailPage() {
     const fetchCourseData = async () => {
       try {
         setLoading(true);
-        // "api.getCourseDetails" ya jo bhi aapka function name hai
         const res = await api.getCourseDetails(id);
         if (res.success) {
-          // ?? null use kiya taake undefined ka error na aaye
           setCourse(res.data ?? null);
         }
       } catch (error) {
@@ -50,6 +48,17 @@ export default function CourseDetailPage() {
     if (id) fetchCourseData();
   }, [id]);
 
+  const handleEnrollClick = () => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      router.push(`/login?redirect=/course/${id}`);
+      return;
+    }
+
+    // Agar token hai, to payment page par bhejo
+    router.push(`/payment/${id}`);
+  };
   if (loading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-white">
@@ -254,7 +263,7 @@ export default function CourseDetailPage() {
 
             <div className="space-y-4 pt-6 border-t border-slate-100">
               <Button
-                onClick={() => router.push(`/payment/${id}`)}
+                onClick={handleEnrollClick}
                 className="w-full bg-[#0a348f] hover:bg-blue-900 text-white py-8 rounded-[2rem] font-black text-xl shadow-2xl uppercase italic active:scale-95 transition-transform"
               >
                 Enroll Now

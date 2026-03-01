@@ -105,7 +105,7 @@ export const Header = () => {
                       Courses
                     </Link>
                     <Link
-                      href="/my-courses"
+                      href="/course/my-courses"
                       className="text-lg font-semibold text-slate-700"
                     >
                       My Courses
@@ -141,7 +141,7 @@ export const Header = () => {
               Courses
             </Link>
             <Link
-              href="/my-courses"
+              href="/course/my-courses"
               className="hover:text-[#0a348f] transition-colors"
             >
               My Courses

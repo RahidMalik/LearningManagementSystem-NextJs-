@@ -7,7 +7,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { handleGoogleAuth } from "@/utils/GoogleAuth";
 import { toast } from "react-hot-toast";
 import { api } from "@/services/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/types/apiClient"; // Check karein path sahi ho
 
 export default function Login() {

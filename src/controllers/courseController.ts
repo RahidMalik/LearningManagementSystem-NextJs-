@@ -1,12 +1,11 @@
 import cloudinary from "@/configs/cloudinary";
 import dbConnect from "@/configs/mongodb";
-import { enrollmentGuard } from "@/middleware/EnrollmentGuard";
 import { Course } from "@/models/Course";
 import { Enrollment } from "@/models/Enrollment";
 import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 
-interface CourseData {
+export interface CourseData {
     userId: string;
     courseId: string;
 }
@@ -215,34 +214,52 @@ export const getCourseDetails = async (req: Request, { params }: { params: any }
 export const enrollCourse = async (req: CourseData) => {
     try {
         await dbConnect();
+        const { userId, courseId } = req;
 
-        const auth = await enrollmentGuard(req);
-        if (!auth.success) return auth.response;
+        // 1. Validation (User aur Course dono ki ID check karein)
+        if (!userId || userId === "" || !mongoose.Types.ObjectId.isValid(userId)) {
+            return NextResponse.json({ error: "Invalid or missing User ID" }, { status: 400 });
+        }
 
-        const userId = auth.userId;
-        const { courseId } = req;
-
-        if (!mongoose.Types.ObjectId.isValid(courseId)) {
+        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
             return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
         }
 
+        // 2. Check if course exists
         const courseExist = await Course.findById(courseId);
-        if (!courseExist) return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
-
-        const existingEnrollment = await Enrollment.findOne({ user: userId, course: courseId });
-        if (existingEnrollment) {
-            return NextResponse.json({ error: "Already enrolled" }, { status: 400 });
+        if (!courseExist) {
+            return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
         }
 
-        const newEnroll = await Enrollment.create({ user: userId, course: courseId });
+        // 3. Check for existing enrollment
+        const existingEnrollment = await Enrollment.findOne({
+            user: userId,
+            course: courseId
+        });
+
+        if (existingEnrollment) {
+            return NextResponse.json({ error: "You are already enrolled in this course" }, { status: 400 });
+        }
+
+        // 4. Create Enrollment
+        const createdEnroll = await Enrollment.create({
+            user: userId,
+            course: courseId,
+            progress: 0 // Default progress set kar dein
+        });
+
+        // 5. Re-fetch with Populate (Taake frontend ko full data mile)
+        const newEnroll = await Enrollment.findById(createdEnroll._id)
+            .populate("course")
+            .lean();
 
         return NextResponse.json({
             success: true,
-            message: "Enrolled Successfully",
-            data: newEnroll
-        });
+            data: newEnroll || [] // Empty array
+        }, { status: 200 }); // 201 Created is better here
 
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("Enrollment Controller Error:", error.message);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 };

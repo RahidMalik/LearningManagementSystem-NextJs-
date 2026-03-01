@@ -157,9 +157,18 @@ export const api = {
         });
     },
     getMyCourses: async (): Promise<ApiResponse<ICourse[]>> => {
-        return await apiClient.request("/courses/my-courses", {
-            method: "GET",
-        });
+        try {
+            const response = await apiClient.request("/courses/my-courses", {
+                method: "GET",
+            });
+            if (!response.success || !response.data) {
+                return { success: true, data: [], message: "" };
+            }
+            return response;
+        } catch (error: any) {
+            console.warn("getMyCourses:", error?.message || "No courses found");
+            return { success: true, data: [], message: "" };
+        }
     },
     getCourseDetails: async (courseId: string): Promise<ApiResponse<ICourse>> => {
         return await apiClient.request(`/courses/${courseId}`, {
@@ -211,5 +220,55 @@ export const api = {
             method: "DELETE",
         })
     },
+    // ==========================================
+    //           Payment Method
+    // ==========================================
+    enrollInCourse: async (courseId: string): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/courses/enroll", {
+            method: "POST",
+            data: { courseId },
+        });
+    },
+    createPaymentIntent: async (courseId: string): Promise<ApiResponse<{ clientSecret: string; amount: number }>> => {
+        return await apiClient.request("/payment/create-intent", {
+            method: "POST",
+            data: { courseId },
+        });
+    },
 
-}
+    uploadToCloudinary: async (file: File): Promise<string> => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", "lms_slips");
+
+        const response = await apiClient.request<{ formData: FormData, secure_url: string }>(
+            "/upload",
+            {
+                method: "POST",
+                data: formData,
+            }
+        )
+
+        if (response.data && response.data.secure_url) {
+            return response.data.secure_url;
+        } else {
+            throw new Error("Failed to get image URL from Cloudinary");
+        }
+    },
+
+    // Updated WalletVerify
+    WalletVerify: async (data: {
+        courseId: string;
+        method: string;
+        phone: string;
+        amount: number;
+        userId: string;
+        receiptUrl: string; // Ensure this is here
+    }): Promise<ApiResponse<{ success: boolean; message: string }>> => {
+        return await apiClient.request("/payments/wallet-verify", {
+            method: "POST",
+            data: data,
+        });
+    },
+};
+
