@@ -14,9 +14,7 @@ import {
   Star,
   Clock,
   BookOpen,
-  Award,
   Globe,
-  Upload,
   ImagePlus,
   X,
 } from "lucide-react";
@@ -25,8 +23,6 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import toast from "react-hot-toast";
 import { api } from "@/services/api";
-
-// Stripe imports
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -39,8 +35,8 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
 );
 
-// ─── Card Style ───────────────────────────────────────────
 const CARD_ELEMENT_OPTIONS = {
+  hidePostalCode: true,
   style: {
     base: {
       fontSize: "16px",
@@ -52,7 +48,6 @@ const CARD_ELEMENT_OPTIONS = {
   },
 };
 
-// ─── Inner Checkout Form (uses Stripe hooks) ──────────────
 function CheckoutForm({
   courseId,
   amount,
@@ -70,14 +65,13 @@ function CheckoutForm({
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [selectedWallet, setSelectedWallet] = useState("");
   const [installmentPlan, setInstallmentPlan] = useState("3");
+  const [userEmail, setUserEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-
-  // Image states
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const router = useRouter();
 
   const PAYMENT_METHODS = [
     {
@@ -113,15 +107,38 @@ function CheckoutForm({
       reader.readAsDataURL(selectedFile);
     }
   };
-  // CheckoutForm Component ke andar handlePay function ko aise update karein:
+
+  const handleSendInstructions = async () => {
+    if (!userEmail) {
+      toast.error("Please enter your email");
+      return;
+    }
+    if (!phoneNumber || phoneNumber.length < 10) {
+      toast.error("Please enter valid phone number");
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      await api.sendWalletInstructions({
+        email: userEmail,
+        method: selectedWallet,
+        amount,
+        phone: phoneNumber,
+      });
+      setEmailSent(true);
+      toast.success("Instructions sent! Check your email.");
+    } catch {
+      toast.error("Failed to send email. Try again.");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const handlePay = async () => {
     if (paying) return;
     setPaying(true);
-    const loadingToast = toast.loading("Initializing payment...");
-
+    const loadingToast = toast.loading("Processing payment...");
     try {
-      // --- CASE 1: STRIPE (Card/Installment) ---
       if (paymentMethod === "card" || paymentMethod === "installment") {
         if (!stripe || !elements) return;
         const cardElement = elements.getElement(CardElement);
@@ -136,41 +153,29 @@ function CheckoutForm({
 
         if (error) throw new Error(error.message);
         if (paymentIntent?.status === "succeeded") {
-          await api.enrollInCourse(courseId);
+          try {
+            await api.enrollInCourse(courseId);
+          } catch (_) {}
           toast.success("Payment Successful!", { id: loadingToast });
           onSuccess();
         }
-      }
-
-      // --- CASE 2: MOBILE WALLET (Manual Verification) ---
-      else if (paymentMethod === "wallet") {
-        if (!selectedWallet || !phoneNumber || !file) {
-          toast.error("Please fill all details and upload receipt", {
-            id: loadingToast,
-          });
+      } else if (paymentMethod === "wallet") {
+        if (!file) {
+          toast.error("Please upload payment screenshot", { id: loadingToast });
           setPaying(false);
           return;
         }
-
-        // STEP 1: Upload Image to Cloudinary via api.ts
-        toast.loading("Uploading receipt to server...", { id: loadingToast });
+        toast.loading("Uploading receipt...", { id: loadingToast });
         const imageUrl = await api.uploadToCloudinary(file);
-
-        // STEP 2: Send URL and Data to your Backend
-        toast.loading("Sending details for verification...", {
-          id: loadingToast,
-        });
-
-        // Note: userId aapko context ya auth state se lena hoga (e.g., const { user } = useAuth())
+        toast.loading("Submitting for verification...", { id: loadingToast });
         const walletRes = await api.WalletVerify({
           courseId,
           method: selectedWallet,
           phone: "+92" + phoneNumber,
           amount,
           receiptUrl: imageUrl,
-          userId: "CURRENT_USER_ID", // Replace with real ID
+          userId: "",
         });
-
         if (walletRes.success) {
           toast.success("Receipt submitted! Admin will verify soon.", {
             id: loadingToast,
@@ -181,7 +186,6 @@ function CheckoutForm({
         }
       }
     } catch (error: any) {
-      console.error("Payment Error:", error);
       toast.error(error.message || "Something went wrong", {
         id: loadingToast,
       });
@@ -194,18 +198,18 @@ function CheckoutForm({
     <div className="space-y-6">
       <RadioGroup
         defaultValue="card"
-        onValueChange={setPaymentMethod}
+        onValueChange={(val) => {
+          setPaymentMethod(val);
+          setEmailSent(false);
+          setSelectedWallet("");
+        }}
         className="grid gap-3"
       >
         {PAYMENT_METHODS.map(({ id, label, sub, icon: Icon }) => (
           <Label
             key={id}
             htmlFor={id}
-            className={`flex items-center justify-between p-4 md:p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-              paymentMethod === id
-                ? "border-[#0a348f] bg-blue-50/30"
-                : "border-slate-100 hover:border-slate-200"
-            }`}
+            className={`flex items-center justify-between p-4 md:p-5 rounded-2xl border-2 cursor-pointer transition-all ${paymentMethod === id ? "border-[#0a348f] bg-blue-50/30" : "border-slate-100 hover:border-slate-200"}`}
           >
             <div className="flex items-center gap-4">
               <RadioGroupItem value={id} id={id} className="sr-only" />
@@ -226,6 +230,7 @@ function CheckoutForm({
         ))}
       </RadioGroup>
 
+      {/* CARD */}
       {paymentMethod === "card" && (
         <div className="space-y-4 animate-in fade-in duration-300">
           <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">
@@ -240,19 +245,19 @@ function CheckoutForm({
         </div>
       )}
 
+      {/* WALLET */}
       {paymentMethod === "wallet" && (
-        <div className="space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="space-y-5 animate-in fade-in duration-300">
           <div className="grid grid-cols-2 gap-3">
             {["EasyPaisa", "JazzCash"].map((w) => (
               <button
                 key={w}
                 type="button"
-                onClick={() => setSelectedWallet(w)}
-                className={`p-3 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center gap-2 ${
-                  selectedWallet === w
-                    ? "border-[#0a348f] bg-blue-50 text-[#0a348f]"
-                    : "border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200"
-                }`}
+                onClick={() => {
+                  setSelectedWallet(w);
+                  setEmailSent(false);
+                }}
+                className={`p-3 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center gap-2 ${selectedWallet === w ? "border-[#0a348f] bg-blue-50 text-[#0a348f]" : "border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200"}`}
               >
                 <div
                   className={`w-2 h-2 rounded-full ${selectedWallet === w ? "bg-[#0a348f]" : "bg-slate-300"}`}
@@ -262,12 +267,33 @@ function CheckoutForm({
             ))}
           </div>
 
-          {selectedWallet && (
+          {selectedWallet && !emailSent && (
             <div className="space-y-4 animate-in zoom-in-95 duration-200">
-              {/* Phone Input */}
+              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                <p className="text-xs font-bold text-amber-700 mb-1">
+                  📧 How it works
+                </p>
+                <p className="text-xs text-amber-600 leading-relaxed">
+                  Enter your email and phone. We will send you our{" "}
+                  {selectedWallet} account details. After sending money, upload
+                  the screenshot.
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">
-                  {selectedWallet} Mobile Number
+                  Your Email
+                </Label>
+                <input
+                  type="email"
+                  value={userEmail}
+                  onChange={(e) => setUserEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full h-12 px-4 bg-slate-50 rounded-xl border border-slate-100 focus:border-[#0a348f] outline-none text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">
+                  Your {selectedWallet} Number
                 </Label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium border-r pr-3 border-slate-200">
@@ -279,25 +305,53 @@ function CheckoutForm({
                     onChange={(e) =>
                       setPhoneNumber(e.target.value.replace(/\D/g, ""))
                     }
-                    placeholder="Mobile Number"
+                    placeholder="3001234567"
                     maxLength={10}
                     className="w-full h-12 pl-16 pr-4 bg-slate-50 rounded-xl border border-slate-100 focus:border-[#0a348f] outline-none"
                   />
                 </div>
               </div>
+              <Button
+                type="button"
+                disabled={sendingEmail || !userEmail || phoneNumber.length < 10}
+                onClick={handleSendInstructions}
+                className="w-full h-12 rounded-xl bg-[#0a348f] text-white font-bold hover:bg-blue-800 transition-all"
+              >
+                {sendingEmail ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2" size={16} />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Payment Instructions →"
+                )}
+              </Button>
+            </div>
+          )}
 
-              {/* Image Upload Box */}
+          {selectedWallet && emailSent && (
+            <div className="space-y-4 animate-in zoom-in-95 duration-200">
+              <div className="p-4 bg-green-50 rounded-2xl border border-green-100 flex items-start gap-3">
+                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <Check size={14} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-green-700">
+                    Instructions sent to {userEmail}
+                  </p>
+                  <p className="text-xs text-green-600 mt-0.5">
+                    Send PKR {amount} to our {selectedWallet} number shown in
+                    the email, then upload screenshot below.
+                  </p>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">
                   Upload Payment Screenshot
                 </Label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className={`relative group cursor-pointer border-2 border-dashed rounded-2xl p-4 transition-all flex flex-col items-center justify-center min-h-[140px] ${
-                    preview
-                      ? "border-[#0a348f] bg-blue-50/20"
-                      : "border-slate-200 hover:border-[#0a348f] hover:bg-slate-50"
-                  }`}
+                  className={`relative group cursor-pointer border-2 border-dashed rounded-2xl p-4 transition-all flex flex-col items-center justify-center min-h-35 ${preview ? "border-[#0a348f] bg-blue-50/20" : "border-slate-200 hover:border-[#0a348f] hover:bg-slate-50"}`}
                 >
                   <input
                     type="file"
@@ -306,7 +360,6 @@ function CheckoutForm({
                     accept="image/*"
                     className="hidden"
                   />
-
                   {preview ? (
                     <div className="relative w-full h-32 flex justify-center">
                       <img
@@ -340,16 +393,16 @@ function CheckoutForm({
                   )}
                 </div>
               </div>
-
               <p className="text-[10px] text-slate-400 italic flex items-center gap-1">
                 <ShieldCheck size={12} className="text-green-500" />
-                Your data is safe. Admin will verify the slip manually.
+                Admin will verify and give you access within 24 hours.
               </p>
             </div>
           )}
         </div>
       )}
 
+      {/* INSTALLMENT */}
       {paymentMethod === "installment" && (
         <div className="space-y-4 animate-in fade-in duration-300">
           <div className="grid grid-cols-2 gap-3">
@@ -358,11 +411,7 @@ function CheckoutForm({
                 key={months}
                 type="button"
                 onClick={() => setInstallmentPlan(months)}
-                className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                  installmentPlan === months
-                    ? "border-[#0a348f] bg-blue-50/30"
-                    : "border-slate-100"
-                }`}
+                className={`p-4 rounded-2xl border-2 text-left transition-all ${installmentPlan === months ? "border-[#0a348f] bg-blue-50/30" : "border-slate-100"}`}
               >
                 <p className="font-bold text-slate-900 text-sm">
                   {months} Months
@@ -383,18 +432,19 @@ function CheckoutForm({
         </div>
       )}
 
-      <Button
-        onClick={handlePay}
-        disabled={paying}
-        className="w-full bg-[#0a348f] text-white hover:bg-blue-800 h-14 rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl"
-      >
-        {paying ? <Loader2 className="animate-spin" /> : `PAY PKR ${amount}`}
-      </Button>
+      {(paymentMethod !== "wallet" || emailSent) && (
+        <Button
+          onClick={handlePay}
+          disabled={paying}
+          className="w-full bg-[#0a348f] text-white hover:bg-blue-800 h-14 rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl"
+        >
+          {paying ? <Loader2 className="animate-spin" /> : `PAY PKR ${amount}`}
+        </Button>
+      )}
     </div>
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────
 interface Course {
   id: string;
   name: string;
@@ -413,7 +463,6 @@ export default function PaymentPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-
   const [loading, setLoading] = useState(true);
   const [course, setCourse] = useState<Course | null>(null);
   const [clientSecret, setClientSecret] = useState("");
@@ -422,10 +471,24 @@ export default function PaymentPage() {
   useEffect(() => {
     const init = async () => {
       try {
+        setLoading(true);
+
+        const checkRes = (await api.checkEnrollment(id)) as any;
+        const isEnrolled =
+          checkRes?.isEnrolled === true || checkRes?.data?.isEnrolled === true;
+
+        if (isEnrolled) {
+          toast.error("You are already enrolled", {
+            duration: 4000,
+          });
+          router.replace(`/course/${id}`);
+          return;
+        }
+
         const response = await api.getCourseDetails(id);
         if (response.success && response.data) {
           const data = response.data as any;
-          const mapped: Course = {
+          setCourse({
             id: data._id || id,
             name: data.title || data.name,
             description: data.description || "",
@@ -436,29 +499,23 @@ export default function PaymentPage() {
             hours: data.hours || "10",
             language: data.language || "English",
             instructor: data.instructor || "Admin",
-          };
-          setCourse(mapped);
+          });
 
-          try {
-            const intentRes = await api.createPaymentIntent(id);
-            if (intentRes.success) {
-              const res = intentRes as any;
-              setClientSecret(res.clientSecret);
-              setFinalAmount(res.amount);
-            }
-          } catch (intentErr: any) {
-            console.error("PaymentIntent error:", intentErr?.message);
+          const intentRes = (await api.createPaymentIntent(id)) as any;
+          if (intentRes.success) {
+            setClientSecret(intentRes.clientSecret);
+            setFinalAmount(intentRes.amount);
           }
         }
       } catch (error: any) {
-        toast.error("Course load failed: " + error?.message);
+        toast.error("Failed to load checkout: " + error?.message);
       } finally {
         setLoading(false);
       }
     };
 
     if (id) init();
-  }, [id]);
+  }, [id, router]);
 
   if (loading)
     return (
@@ -468,14 +525,19 @@ export default function PaymentPage() {
     );
 
   if (!course)
-    return <div className="text-center py-20">Course not found.</div>;
+    return (
+      <div className="text-center py-20 font-bold text-red-500">
+        Course not found.
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-slate-50/50 py-8 px-4 md:py-12">
       <div className="max-w-6xl mx-auto space-y-6">
+        {/* Course Info Banner */}
         <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
           <div className="flex flex-col md:flex-row md:items-start gap-6">
-            <div className="w-full md:w-48 h-32 bg-linear-to-br from-[#0a348f] to-blue-400 rounded-2xl flex items-center justify-center shrink-0">
+            <div className="w-full md:w-48 h-32 bg-gradient-to-br from-[#0a348f] to-blue-400 rounded-2xl flex items-center justify-center shrink-0">
               <BookOpen size={40} className="text-white/80" />
             </div>
             <div className="flex-1 space-y-3">
@@ -529,12 +591,8 @@ export default function PaymentPage() {
               <p className="text-slate-500 text-sm mb-8">
                 Select your preferred payment method
               </p>
-
               {clientSecret ? (
-                <Elements
-                  stripe={stripePromise}
-                  options={{ clientSecret, paymentMethodCreation: "manual" }}
-                >
+                <Elements stripe={stripePromise} options={{ clientSecret }}>
                   <CheckoutForm
                     courseId={id}
                     amount={finalAmount}
@@ -543,13 +601,17 @@ export default function PaymentPage() {
                   />
                 </Elements>
               ) : (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="animate-spin text-[#0a348f]" size={32} />
+                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <Loader2 className="animate-spin text-[#0a348f]" size={40} />
+                  <p className="text-slate-500 font-medium text-sm">
+                    Initializing Secure Checkout...
+                  </p>
                 </div>
               )}
             </div>
           </div>
 
+          {/* Order Summary */}
           <div className="lg:col-span-4 space-y-4">
             <div className="bg-[#0a348f] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-blue-200">
               <h2 className="text-xl font-bold mb-6">Order Details</h2>

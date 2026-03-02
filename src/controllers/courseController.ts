@@ -238,7 +238,11 @@ export const enrollCourse = async (req: CourseData) => {
         });
 
         if (existingEnrollment) {
-            return NextResponse.json({ error: "You are already enrolled in this course" }, { status: 400 });
+            return NextResponse.json({
+                success: true,
+                message: "You are already enrolled",
+                alreadyEnrolled: true
+            }, { status: 200 });
         }
 
         // 4. Create Enrollment
@@ -260,6 +264,33 @@ export const enrollCourse = async (req: CourseData) => {
 
     } catch (error: any) {
         console.error("Enrollment Controller Error:", error.message);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+};
+
+// ==========================================
+// 7. Check Enrollment Status (New)
+// ==========================================
+export const checkEnrollmentStatus = async (req: CourseData) => {
+    try {
+        await dbConnect();
+        const { userId, courseId } = req;
+
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId) || !courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+            return NextResponse.json({ success: true, isEnrolled: false }, { status: 200 });
+        }
+
+        const existingEnrollment = await Enrollment.findOne({
+            user: userId,
+            course: courseId
+        });
+
+        return NextResponse.json({
+            success: true,
+            isEnrolled: !!existingEnrollment
+        }, { status: 200 });
+
+    } catch (error: any) {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 };

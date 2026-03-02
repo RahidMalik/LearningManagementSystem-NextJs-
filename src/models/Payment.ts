@@ -1,31 +1,14 @@
-import mongoose from "mongoose";
+// src/models/Payment.ts
+import mongoose, { Schema } from "mongoose";
 
-const PaymentSchema = new mongoose.Schema({
-    user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', required: true
-    },
-    course: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Course', required: true
-    },
-    amount: Number,
-    paymentMethod: {
-        type: String,
-        enum: ['EasyPaisa', 'JazzCash'],
-        required: true
-    },
-    senderPhone: String,
-    // Receipt ki image ka URL (Cloudinary link)
-    receiptUrl: {
-        type: String,
-        required: function () { return this.paymentMethod !== 'Stripe'; }
-    },
-    status: {
-        type: String,
-        enum: ['pending', 'completed', 'rejected'],
-        default: 'pending'
-    }
+const PaymentSchema = new Schema({
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    course: { type: Schema.Types.ObjectId, ref: "Course", required: true },
+    amount: { type: Number, required: true },
+    paymentMethod: { type: String, enum: ["EasyPaisa", "JazzCash", "stripe"], required: true },
+    senderPhone: { type: String },
+    receiptUrl: { type: String },
+    status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
 }, { timestamps: true });
 
-export const Payment = mongoose.models.Payment || mongoose.model('Payment', PaymentSchema);
+export const Payment = mongoose.models.Payment || mongoose.model("Payment", PaymentSchema);

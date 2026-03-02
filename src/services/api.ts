@@ -25,6 +25,16 @@ export interface ICourse {
     image: string;
     progress?: number;
     description?: string;
+    // UI ke liye extra optional fields
+    thumbnail?: string;
+    videoUrl?: string;
+    lectures?: any[];
+    category?: string;
+    badge?: string;
+    level?: string;
+    rating?: string;
+    hours?: string;
+    language?: string;
 }
 // --- COURSE ADMINTYPES ---
 export interface ICourseAdmin {
@@ -229,8 +239,21 @@ export const api = {
             data: { courseId },
         });
     },
+    checkEnrollment: async (courseId: string) => {
+        try {
+            const res = await apiClient.request(
+                `/courses/check-enrollment?courseId=${courseId}`
+            );
+            return res.data ?? res;
+        } catch {
+            return { isEnrolled: false };
+        }
+    },
+    // ==========================================
+    //           Payment Logic
+    // ==========================================
     createPaymentIntent: async (courseId: string): Promise<ApiResponse<{ clientSecret: string; amount: number }>> => {
-        return await apiClient.request("/payment/create-intent", {
+        return await apiClient.request("/payments/create-intent", {
             method: "POST",
             data: { courseId },
         });
@@ -239,18 +262,17 @@ export const api = {
     uploadToCloudinary: async (file: File): Promise<string> => {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("upload_preset", "lms_slips");
 
-        const response = await apiClient.request<{ formData: FormData, secure_url: string }>(
-            "/upload",
+        const response = await apiClient.request<{ success: boolean; url: string }>(
+            "/payments/upload-receipt",
             {
                 method: "POST",
                 data: formData,
             }
-        )
+        );
 
-        if (response.data && response.data.secure_url) {
-            return response.data.secure_url;
+        if (response.data && response.data.url) {
+            return response.data.url;
         } else {
             throw new Error("Failed to get image URL from Cloudinary");
         }
@@ -268,6 +290,20 @@ export const api = {
         return await apiClient.request("/payments/wallet-verify", {
             method: "POST",
             data: data,
+        });
+    },
+    // ==========================================
+    //           Send email
+    // ==========================================
+    sendWalletInstructions: async (data: {
+        email: string;
+        method: string;
+        amount: number;
+        phone: string;
+    }) => {
+        return await apiClient.request("/mail/payments/send-instructions", {
+            method: "POST",
+            data,
         });
     },
 };
