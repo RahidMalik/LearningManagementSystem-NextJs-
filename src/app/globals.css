@@ -80,6 +80,18 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Aapke Custom light theme variables idhar add kiye hain taake transition smooth ho */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-muted: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border-strong: #e2e8f0;
+  --accent-hover: #1d4ed8;
+  --accent-light: #eff6ff;
 }
 
 .dark {
@@ -114,13 +126,72 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Aapke Custom dark theme variables */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #1a1a1a;
+  --bg-muted: #222222;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-light: #1e3a5f20;
 }
 
+/* ============================================================
+   THE MAGICAL GLOBAL TRANSITION
+   Yahan maine colors, shadow, fill aur svg elements cover kiye hain.
+   ============================================================ */
 @layer base {
-  * {
+  *,
+  *::before,
+  *::after {
     @apply border-border outline-ring/50;
+    transition-property:
+      color, background-color, border-color, text-decoration-color, fill,
+      stroke, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ============================================================
+   Utility classes using CSS variables
+   ============================================================ */
+.bg-theme-primary {
+  background-color: var(--bg-primary);
+}
+.bg-theme-secondary {
+  background-color: var(--bg-secondary);
+}
+.bg-theme-card {
+  background-color: var(--bg-card);
+}
+.bg-theme-muted {
+  background-color: var(--bg-muted);
+}
+
+.text-theme-primary {
+  color: var(--text-primary);
+}
+.text-theme-secondary {
+  color: var(--text-secondary);
+}
+.text-theme-muted {
+  color: var(--text-muted);
+}
+
+.border-theme {
+  border-color: var(--border);
+}
+.border-theme-strong {
+  border-color: var(--border-strong);
 }

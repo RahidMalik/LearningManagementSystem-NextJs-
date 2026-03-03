@@ -1,7 +1,9 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-    darkMode: ["class"],
+
+    darkMode: "class",
+
     content: [
         "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
         "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,15 +11,16 @@ const config: Config = {
     ],
     theme: {
         extend: {
-            borderRadius: {
-                lg: "var(--radius)",
-                md: "calc(var(--radius) - 2px)",
-                sm: "calc(var(--radius) - 4px)",
-            },
-            colors: {},
+            colors: {
+                brand: {
+                    DEFAULT: "#0a348f",
+                    light: "#1e40af",
+                    dark: "#1e3a8a",
+                }
+            }
         },
     },
-    plugins: [require("tailwindcss-animate")],
+    plugins: [],
 };
 
 export default config;

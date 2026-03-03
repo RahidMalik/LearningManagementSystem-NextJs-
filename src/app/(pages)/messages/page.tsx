@@ -11,12 +11,11 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { api } from "@/services/api"; // Aapki API service file
+import { api } from "@/services/api";
 import { io, Socket } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 
-// Socket instance
 let socket: Socket;
 
 export default function MessagesPage() {
@@ -28,17 +27,14 @@ export default function MessagesPage() {
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // --- 1. Static User ID (Isay aap apne Auth context se replace karein) ---
   const currentUserId = "65ba1234567890abcdef1234";
 
-  // --- 2. Initialize Socket & Fetch Chats ---
   useEffect(() => {
-    // Socket connect karein (Backend URL yahan aayega)
     socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000");
 
     const initChats = async () => {
       try {
-        const res = await api.getConversations(); // GET /api/conversations
+        const res = await api.getConversations();
         if (res.success) setConversations(res.data);
       } catch (err) {
         toast.error("Failed to load chats");
@@ -54,17 +50,14 @@ export default function MessagesPage() {
     };
   }, []);
 
-  // --- 3. Socket Listeners for Real-time ---
   useEffect(() => {
     if (!socket) return;
 
     socket.on("messageReceived", (incomingMsg) => {
-      // Agar ye message usi chat ka hai jo open hai
       if (activeChat && incomingMsg.conversationId === activeChat._id) {
         setMessages((prev) => [...prev, incomingMsg]);
       }
 
-      // Sidebar ki last message update karein
       setConversations((prev) =>
         prev.map((c) =>
           c._id === incomingMsg.conversationId
@@ -79,14 +72,13 @@ export default function MessagesPage() {
     };
   }, [activeChat]);
 
-  // --- 4. Load Messages on Chat Switch ---
   useEffect(() => {
     if (activeChat) {
       const loadMessages = async () => {
         try {
-          const res = await api.getMessages(activeChat._id); // GET /api/messages?convId=...
+          const res = await api.getMessages(activeChat._id);
           setMessages(res.data);
-          socket.emit("joinRoom", activeChat._id); // Socket room join karein
+          socket.emit("joinRoom", activeChat._id);
         } catch (err) {
           toast.error("Could not load messages");
         }
@@ -95,12 +87,10 @@ export default function MessagesPage() {
     }
   }, [activeChat]);
 
-  // --- 5. Auto Scroll to Bottom ---
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // --- 6. Send Message Logic ---
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChat || isSending) return;
@@ -118,10 +108,10 @@ export default function MessagesPage() {
     };
 
     try {
-      const res = await api.sendMessage(payload); // POST /api/messages
+      const res = await api.sendMessage(payload);
       if (res.success) {
         setMessages((prev) => [...prev, res.data]);
-        socket.emit("newMessage", res.data); // Emit to other user
+        socket.emit("newMessage", res.data);
         setNewMessage("");
       }
     } catch (err) {
@@ -133,188 +123,220 @@ export default function MessagesPage() {
 
   if (loading)
     return (
-      <div className="h-[80vh] flex flex-col items-center justify-center gap-4">
-        <Loader2 className="animate-spin text-[#0a348f]" size={40} />
-        <p className="text-slate-500 font-medium">
+      <div className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+        <Loader2
+          className="animate-spin text-[#0a348f] dark:text-blue-400"
+          size={40}
+        />
+        <p className="text-slate-500 dark:text-slate-400 font-medium">
           Loading your conversations...
         </p>
       </div>
     );
 
   return (
-    <div className="container mx-auto h-[calc(100vh-120px)] flex overflow-hidden bg-white border rounded-[2rem] shadow-2xl my-4">
-      {/* --- Sidebar: Contacts --- */}
-      <div className="w-full md:w-96 border-r flex flex-col bg-slate-50/50">
-        <div className="p-6 bg-white border-b">
-          <h2 className="text-2xl font-black text-[#0a348f] mb-4">Messages</h2>
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={18}
-            />
-            <Input
-              placeholder="Search chats..."
-              className="pl-10 rounded-2xl bg-slate-100 border-none h-12"
-            />
+    // Main Wrapper
+    <div className="p-4 md:p-8 bg-slate-50 dark:bg-slate-900 min-h-[calc(100vh-4rem)] transition-colors duration-300">
+      <div className="container mx-auto h-[calc(100vh-140px)] flex overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[2rem] shadow-xl dark:shadow-none transition-colors duration-300">
+        {/* --- Sidebar: Contacts --- */}
+        <div
+          className={`w-full md:w-96 border-r border-slate-200 dark:border-slate-700 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 transition-colors duration-300 ${activeChat ? "hidden md:flex" : "flex"}`}
+        >
+          <div className="p-6 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 transition-colors duration-300">
+            <h2 className="text-2xl font-black text-[#0a348f] dark:text-blue-400 mb-4 transition-colors">
+              Messages
+            </h2>
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 transition-colors"
+                size={18}
+              />
+              <Input
+                placeholder="Search chats..."
+                className="pl-10 rounded-2xl bg-slate-100 dark:bg-slate-900 border-none h-12 text-slate-900 dark:text-slate-100 focus-visible:ring-1 focus-visible:ring-blue-500 transition-colors duration-300"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {conversations.length > 0 ? (
+              conversations.map((chat) => {
+                const otherUser = chat.participants.find(
+                  (p: any) => p._id !== currentUserId,
+                );
+                return (
+                  <div
+                    key={chat._id}
+                    onClick={() => setActiveChat(chat)}
+                    className={`flex items-center gap-4 p-5 cursor-pointer transition-all border-b border-slate-100/50 dark:border-slate-700/50 ${
+                      activeChat?._id === chat._id
+                        ? "bg-white dark:bg-slate-800 shadow-md z-10 scale-[1.02] border-l-4 border-l-[#0a348f] dark:border-l-blue-500"
+                        : "hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
+                    }`}
+                  >
+                    <div className="h-14 w-14 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-[#0a348f] dark:text-blue-400 font-bold text-xl border-2 border-white dark:border-slate-800 shadow-sm transition-colors">
+                      {otherUser?.name?.charAt(0) || "U"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline">
+                        <h4 className="font-bold text-slate-800 dark:text-slate-200 truncate transition-colors">
+                          {otherUser?.name}
+                        </h4>
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                          12:40 PM
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5 transition-colors">
+                        {chat.lastMessage || "No messages yet"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-10 text-center text-slate-400 dark:text-slate-500">
+                No conversations yet
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {conversations.length > 0 ? (
-            conversations.map((chat) => {
-              const otherUser = chat.participants.find(
-                (p: any) => p._id !== currentUserId,
-              );
-              return (
-                <div
-                  key={chat._id}
-                  onClick={() => setActiveChat(chat)}
-                  className={`flex items-center gap-4 p-5 cursor-pointer transition-all border-b border-slate-100/50 ${
-                    activeChat?._id === chat._id
-                      ? "bg-white shadow-md z-10 scale-[1.02] border-l-4 border-l-[#0a348f]"
-                      : "hover:bg-slate-100/50"
-                  }`}
-                >
-                  <div className="h-14 w-14 rounded-full bg-blue-100 flex items-center justify-center text-[#0a348f] font-bold text-xl border-2 border-white shadow-sm">
-                    {otherUser?.name?.charAt(0) || "U"}
+        {/* --- Main Chat Window --- */}
+        <div
+          className={`flex-1 flex-col bg-white dark:bg-slate-800 transition-colors duration-300 ${!activeChat ? "hidden md:flex" : "flex"}`}
+        >
+          {activeChat ? (
+            <>
+              {/* Header */}
+              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-white/80 dark:bg-slate-800/80 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300">
+                <div className="flex items-center gap-4">
+                  {/* Mobile Back Button */}
+                  <button
+                    onClick={() => setActiveChat(null)}
+                    className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                  </button>
+
+                  <div className="h-12 w-12 rounded-full bg-[#0a348f] dark:bg-blue-600 text-white flex items-center justify-center font-bold shadow-lg transition-colors">
+                    {activeChat.participants
+                      .find((p: any) => p._id !== currentUserId)
+                      ?.name.charAt(0)}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline">
-                      <h4 className="font-bold text-slate-800 truncate">
-                        {otherUser?.name}
-                      </h4>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        12:40 PM
+                  <div>
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg transition-colors">
+                      {
+                        activeChat.participants.find(
+                          (p: any) => p._id !== currentUserId,
+                        )?.name
+                      }
+                    </h3>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        Online
                       </span>
                     </div>
-                    <p className="text-sm text-slate-500 truncate mt-0.5">
-                      {chat.lastMessage || "No messages yet"}
-                    </p>
                   </div>
                 </div>
-              );
-            })
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                >
+                  <MoreVertical size={20} />
+                </Button>
+              </div>
+
+              {/* Messages List */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 bg-[#f8fafc] dark:bg-slate-900 transition-colors duration-300">
+                <AnimatePresence initial={false}>
+                  {messages.map((msg) => (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      key={msg._id}
+                      className={`flex ${msg.senderId === currentUserId ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[75%] md:max-w-[65%] p-4 rounded-[1.5rem] shadow-sm text-sm leading-relaxed transition-colors ${
+                          msg.senderId === currentUserId
+                            ? "bg-[#0a348f] dark:bg-blue-600 text-white rounded-tr-none shadow-blue-200 dark:shadow-none"
+                            : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-tl-none border border-slate-100 dark:border-slate-700 shadow-slate-200 dark:shadow-none"
+                        }`}
+                      >
+                        {msg.text}
+                        <p
+                          className={`text-[9px] mt-2 font-bold opacity-60 ${msg.senderId === currentUserId ? "text-right" : "text-left"}`}
+                        >
+                          {new Date(msg.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+                <div ref={scrollRef} />
+              </div>
+
+              {/* Input Form */}
+              <div className="p-4 md:p-6 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 transition-colors duration-300">
+                <form
+                  onSubmit={handleSendMessage}
+                  className="flex items-center gap-2 md:gap-3 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:border-[#0a348f] dark:focus-within:border-blue-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all shadow-inner dark:shadow-none"
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-slate-400 hover:text-[#0a348f] dark:hover:text-blue-400 rounded-xl"
+                  >
+                    <Paperclip size={20} />
+                  </Button>
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Write your message..."
+                    className="border-none bg-transparent focus-visible:ring-0 text-slate-700 dark:text-slate-200 h-12 w-full"
+                  />
+                  <Button
+                    disabled={!newMessage.trim() || isSending}
+                    className="bg-[#0a348f] dark:bg-blue-600 hover:bg-[#0d2a6b] dark:hover:bg-blue-700 rounded-xl h-12 px-4 md:px-6 shadow-lg shadow-blue-100 dark:shadow-none active:scale-95 transition-all text-white"
+                  >
+                    {isSending ? (
+                      <Loader2 className="animate-spin" size={18} />
+                    ) : (
+                      <Send size={18} />
+                    )}
+                  </Button>
+                </form>
+              </div>
+            </>
           ) : (
-            <div className="p-10 text-center text-slate-400">
-              No conversations yet
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-300 dark:text-slate-600 gap-4 bg-slate-50/30 dark:bg-slate-900/30 transition-colors duration-300">
+              <div className="p-6 bg-white dark:bg-slate-800 rounded-full shadow-xl shadow-slate-100 dark:shadow-none transition-colors">
+                <User size={60} className="dark:text-slate-500" />
+              </div>
+              <p className="font-bold text-lg text-slate-400 dark:text-slate-500">
+                Select a contact to start chatting
+              </p>
             </div>
           )}
         </div>
-      </div>
-
-      {/* --- Main Chat Window --- */}
-      <div className="hidden md:flex flex-1 flex-col bg-white">
-        {activeChat ? (
-          <>
-            {/* Header */}
-            <div className="p-5 border-b flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-20">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-[#0a348f] text-white flex items-center justify-center font-bold shadow-lg">
-                  {activeChat.participants
-                    .find((p: any) => p._id !== currentUserId)
-                    ?.name.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-lg">
-                    {
-                      activeChat.participants.find(
-                        (p: any) => p._id !== currentUserId,
-                      )?.name
-                    }
-                  </h3>
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Online
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full text-slate-400"
-              >
-                <MoreVertical size={20} />
-              </Button>
-            </div>
-
-            {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#f8fafc]">
-              <AnimatePresence initial={false}>
-                {messages.map((msg) => (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    key={msg._id}
-                    className={`flex ${msg.senderId === currentUserId ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[65%] p-4 rounded-[1.5rem] shadow-sm text-sm leading-relaxed ${
-                        msg.senderId === currentUserId
-                          ? "bg-[#0a348f] text-white rounded-tr-none shadow-blue-200"
-                          : "bg-white text-slate-700 rounded-tl-none border border-slate-100 shadow-slate-200"
-                      }`}
-                    >
-                      {msg.text}
-                      <p
-                        className={`text-[9px] mt-2 font-bold opacity-60 ${msg.senderId === currentUserId ? "text-right" : "text-left"}`}
-                      >
-                        {new Date(msg.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              <div ref={scrollRef} />
-            </div>
-
-            {/* Input Form */}
-            <div className="p-6 bg-white border-t">
-              <form
-                onSubmit={handleSendMessage}
-                className="flex items-center gap-3 bg-slate-100 p-2 rounded-2xl border border-slate-200 focus-within:border-[#0a348f] focus-within:bg-white transition-all shadow-inner"
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-slate-400 hover:text-[#0a348f] rounded-xl"
-                >
-                  <Paperclip size={20} />
-                </Button>
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Write your message here..."
-                  className="border-none bg-transparent focus-visible:ring-0 text-slate-700 h-12"
-                />
-                <Button
-                  disabled={!newMessage.trim() || isSending}
-                  className="bg-[#0a348f] hover:bg-[#0d2a6b] rounded-xl h-12 px-6 shadow-lg shadow-blue-100 active:scale-95 transition-all"
-                >
-                  {isSending ? (
-                    <Loader2 className="animate-spin" size={18} />
-                  ) : (
-                    <Send size={18} />
-                  )}
-                </Button>
-              </form>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-4 bg-slate-50/30">
-            <div className="p-6 bg-white rounded-full shadow-xl shadow-slate-100">
-              <User size={60} />
-            </div>
-            <p className="font-bold text-lg text-slate-400">
-              Select a contact to start chatting
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -53,11 +53,13 @@ function CheckoutForm({
   amount,
   clientSecret,
   onSuccess,
+  onWalletSuccess,
 }: {
   courseId: string;
   amount: number;
   clientSecret: string;
   onSuccess: () => void;
+  onWalletSuccess: () => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -143,14 +145,12 @@ function CheckoutForm({
         if (!stripe || !elements) return;
         const cardElement = elements.getElement(CardElement);
         if (!cardElement) throw new Error("Card element not found");
-
         const { error, paymentIntent } = await stripe.confirmCardPayment(
           clientSecret,
           {
             payment_method: { card: cardElement },
           },
         );
-
         if (error) throw new Error(error.message);
         if (paymentIntent?.status === "succeeded") {
           try {
@@ -180,7 +180,7 @@ function CheckoutForm({
           toast.success("Receipt submitted! Admin will verify soon.", {
             id: loadingToast,
           });
-          onSuccess();
+          onWalletSuccess();
         } else {
           throw new Error(walletRes.message || "Submission failed");
         }
@@ -230,7 +230,6 @@ function CheckoutForm({
         ))}
       </RadioGroup>
 
-      {/* CARD */}
       {paymentMethod === "card" && (
         <div className="space-y-4 animate-in fade-in duration-300">
           <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">
@@ -245,7 +244,6 @@ function CheckoutForm({
         </div>
       )}
 
-      {/* WALLET */}
       {paymentMethod === "wallet" && (
         <div className="space-y-5 animate-in fade-in duration-300">
           <div className="grid grid-cols-2 gap-3">
@@ -402,7 +400,6 @@ function CheckoutForm({
         </div>
       )}
 
-      {/* INSTALLMENT */}
       {paymentMethod === "installment" && (
         <div className="space-y-4 animate-in fade-in duration-300">
           <div className="grid grid-cols-2 gap-3">
@@ -470,21 +467,20 @@ export default function PaymentPage() {
 
   useEffect(() => {
     const init = async () => {
+      let redirecting = false;
+
       try {
         setLoading(true);
 
-        const checkRes = (await api.checkEnrollment(id)) as any;
-        const isEnrolled =
-          checkRes?.isEnrolled === true || checkRes?.data?.isEnrolled === true;
-
-        if (isEnrolled) {
-          toast.error("You are already enrolled", {
-            duration: 4000,
-          });
+        // STEP 1: Enrollment check
+        const enrollCheck = await api.checkEnrollment(id);
+        if (enrollCheck.isEnrolled) {
+          redirecting = true;
           router.replace(`/course/${id}`);
           return;
         }
 
+        // STEP 2: Course details
         const response = await api.getCourseDetails(id);
         if (response.success && response.data) {
           const data = response.data as any;
@@ -501,6 +497,7 @@ export default function PaymentPage() {
             instructor: data.instructor || "Admin",
           });
 
+          // STEP 3: Payment intent
           const intentRes = (await api.createPaymentIntent(id)) as any;
           if (intentRes.success) {
             setClientSecret(intentRes.clientSecret);
@@ -508,7 +505,9 @@ export default function PaymentPage() {
           }
         }
       } catch (error: any) {
-        toast.error("Failed to load checkout: " + error?.message);
+        if (!redirecting) {
+          toast.error("Failed to load checkout: " + error?.message);
+        }
       } finally {
         setLoading(false);
       }
@@ -534,10 +533,9 @@ export default function PaymentPage() {
   return (
     <div className="min-h-screen bg-slate-50/50 py-8 px-4 md:py-12">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Course Info Banner */}
-        <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+        <div className=" rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
           <div className="flex flex-col md:flex-row md:items-start gap-6">
-            <div className="w-full md:w-48 h-32 bg-gradient-to-br from-[#0a348f] to-blue-400 rounded-2xl flex items-center justify-center shrink-0">
+            <div className="w-full md:w-48 h-32 bg-linear-to-br from-[#0a348f] to-blue-400 rounded-2xl flex items-center justify-center shrink-0">
               <BookOpen size={40} className="text-white/80" />
             </div>
             <div className="flex-1 space-y-3">
@@ -598,6 +596,11 @@ export default function PaymentPage() {
                     amount={finalAmount}
                     clientSecret={clientSecret}
                     onSuccess={() => router.push("/payment-success")}
+                    onWalletSuccess={() =>
+                      router.push(
+                        `/payment-pending?courseId=${id}&method=Wallet`,
+                      )
+                    }
                   />
                 </Elements>
               ) : (
@@ -611,7 +614,6 @@ export default function PaymentPage() {
             </div>
           </div>
 
-          {/* Order Summary */}
           <div className="lg:col-span-4 space-y-4">
             <div className="bg-[#0a348f] rounded-[2.5rem] p-8 text-white shadow-2xl shadow-blue-200">
               <h2 className="text-xl font-bold mb-6">Order Details</h2>

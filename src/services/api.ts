@@ -239,14 +239,16 @@ export const api = {
             data: { courseId },
         });
     },
-    checkEnrollment: async (courseId: string) => {
+    checkEnrollment: async (courseId: string): Promise<{ success: boolean; isEnrolled: boolean }> => {
         try {
-            const res = await apiClient.request(
-                `/courses/check-enrollment?courseId=${courseId}`
-            );
-            return res.data ?? res;
+            const res = await apiClient.request(`/courses/check-enrollment?courseId=${courseId}`);
+            const data = (res.data ?? res) as any;
+            return {
+                success: true,
+                isEnrolled: data?.isEnrolled === true,
+            };
         } catch {
-            return { isEnrolled: false };
+            return { success: false, isEnrolled: false };
         }
     },
     // ==========================================
@@ -268,13 +270,18 @@ export const api = {
             {
                 method: "POST",
                 data: formData,
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
             }
         );
 
-        if (response.data && response.data.url) {
+        if (response?.url) {
+            return response.url;
+        } else if (response?.data?.url) {
             return response.data.url;
         } else {
-            throw new Error("Failed to get image URL from Cloudinary");
+            throw new Error(response?.error || "Failed to get image URL");
         }
     },
 

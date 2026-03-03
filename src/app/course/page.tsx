@@ -25,7 +25,7 @@ export default function AllCoursesPage() {
     const fetchAllCourses = async () => {
       try {
         setLoading(true);
-        setError(null); // Pehle purana error clear karein
+        setError(null);
         const res: any = await api.getAllCourses();
 
         const coursesArray = res.courses || res.data?.courses || [];
@@ -47,7 +47,6 @@ export default function AllCoursesPage() {
           setCourses(formattedData);
         }
       } catch (err: any) {
-        // Agar koi masla ho toh error state me save karein
         setError(err.message || "Failed to fetch available courses.");
       } finally {
         setLoading(false);
@@ -56,7 +55,6 @@ export default function AllCoursesPage() {
     fetchAllCourses();
   }, []);
 
-  // --- Pagination Calculation ---
   const indexOfLastCourse = currentPage * coursesPerPage;
   const indexOfFirstCourse = indexOfLastCourse - coursesPerPage;
   const currentCourses = courses.slice(indexOfFirstCourse, indexOfLastCourse);
@@ -67,27 +65,32 @@ export default function AllCoursesPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // 1. Loading UI
   if (loading) {
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="animate-spin text-[#0a348f]" size={48} />
-        <p className="text-slate-500 font-medium">Loading Course Catalog...</p>
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4 bg-slate-50 dark:bg-slate-900 transition-colors">
+        <Loader2
+          className="animate-spin text-[#0a348f] dark:text-blue-400"
+          size={48}
+        />
+        <p className="text-slate-500 dark:text-slate-400 font-medium">
+          Loading Course Catalog...
+        </p>
       </div>
     );
   }
 
-  // 2. Error UI (Yahan humne 'error' variable ko use kar liya hai)
   if (error) {
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center space-y-4 text-center px-4">
-        <div className="p-5 bg-red-50 rounded-full mb-2">
-          <AlertCircle className="text-red-500" size={48} />
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4 text-center px-4 bg-slate-50 dark:bg-slate-900 transition-colors">
+        <div className="p-5 bg-red-50 dark:bg-red-900/20 rounded-full mb-2">
+          <AlertCircle className="text-red-500 dark:text-red-400" size={48} />
         </div>
-        <h2 className="text-2xl font-bold text-slate-800">
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
           Oops! Something went wrong
         </h2>
-        <p className="text-slate-500 font-medium max-w-md">{error}</p>
+        <p className="text-slate-500 dark:text-slate-400 font-medium max-w-md">
+          {error}
+        </p>
         <Button
           onClick={() => window.location.reload()}
           className="mt-4 bg-[#0a348f] hover:bg-blue-800 text-white rounded-xl h-12 px-8"
@@ -98,19 +101,23 @@ export default function AllCoursesPage() {
     );
   }
 
-  // 3. Main Content UI
   return (
-    <div className="p-8 space-y-10 bg-slate-50 min-h-screen">
+    <div className="p-8 space-y-10 bg-slate-50 dark:bg-slate-900 min-h-[calc(100vh-4rem)] transition-colors duration-300">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
-          <h1 className="text-4xl font-black text-[#0a348f] flex items-center gap-3 tracking-tight uppercase">
-            <LayoutGrid className="text-blue-600" size={32} />
+          <h1 className="text-4xl font-black text-[#0a348f] dark:text-blue-400 flex items-center gap-3 tracking-tight uppercase">
+            <LayoutGrid
+              className="text-blue-600 dark:text-blue-500"
+              size={32}
+            />
             Explore Programs
           </h1>
-          <p className="text-slate-500 text-lg">
+          <p className="text-slate-500 dark:text-slate-400 text-lg">
             Choose from{" "}
-            <span className="text-blue-600 font-bold">{courses.length}</span>{" "}
+            <span className="text-blue-600 dark:text-blue-400 font-bold">
+              {courses.length}
+            </span>{" "}
             professional courses
           </p>
         </div>
@@ -121,16 +128,21 @@ export default function AllCoursesPage() {
         <>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {currentCourses.map((course) => (
-              <CourseCard
+              /* YAHAN FIX KIYA HAI: transition-all, hover scale, aur focus ring add kiya hai */
+              <div
                 key={course._id}
-                id={course._id}
-                title={course.title}
-                instructor={course.instructor!}
-                image={course.image!}
-                category={course.category}
-                price={course.price}
-                videoCount={(course as any).videoCount}
-              />
+                className="block transition-all duration-300 hover:scale-[1.03] hover:z-10 focus-within:ring-4 focus-within:ring-blue-500/50 rounded-[32px]"
+              >
+                <CourseCard
+                  id={course._id}
+                  title={course.title}
+                  instructor={course.instructor!}
+                  image={course.image!}
+                  category={course.category}
+                  price={course.price}
+                  videoCount={(course as any).videoCount}
+                />
+              </div>
             ))}
           </div>
 
@@ -140,7 +152,7 @@ export default function AllCoursesPage() {
               <button
                 disabled={currentPage === 1}
                 onClick={() => paginate(currentPage - 1)}
-                className="p-4 rounded-2xl bg-white border border-slate-200 text-[#0a348f] disabled:opacity-20 hover:bg-slate-50 transition-all shadow-sm"
+                className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#0a348f] dark:text-blue-400 disabled:opacity-20 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
               >
                 <ChevronLeft size={24} />
               </button>
@@ -152,8 +164,8 @@ export default function AllCoursesPage() {
                     onClick={() => paginate(index + 1)}
                     className={`w-12 h-12 rounded-2xl font-black transition-all ${
                       currentPage === index + 1
-                        ? "bg-[#0a348f] text-white shadow-xl scale-110"
-                        : "bg-white border border-slate-200 text-slate-500 hover:border-blue-300"
+                        ? "bg-[#0a348f] dark:bg-blue-600 text-white shadow-xl scale-110 border-transparent"
+                        : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-500"
                     }`}
                   >
                     {index + 1}
@@ -164,7 +176,7 @@ export default function AllCoursesPage() {
               <button
                 disabled={currentPage === totalPages}
                 onClick={() => paginate(currentPage + 1)}
-                className="p-4 rounded-2xl bg-white border border-slate-200 text-[#0a348f] disabled:opacity-20 hover:bg-slate-50 transition-all shadow-sm"
+                className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#0a348f] dark:text-blue-400 disabled:opacity-20 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
               >
                 <ChevronRight size={24} />
               </button>
@@ -172,9 +184,12 @@ export default function AllCoursesPage() {
           )}
         </>
       ) : (
-        <div className="flex flex-col items-center justify-center py-32 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
-          <BookOpen className="text-slate-200 mb-4" size={80} />
-          <h2 className="text-2xl font-bold text-slate-400 uppercase tracking-widest">
+        <div className="flex flex-col items-center justify-center py-32 bg-white dark:bg-slate-800 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-700">
+          <BookOpen
+            className="text-slate-200 dark:text-slate-600 mb-4"
+            size={80}
+          />
+          <h2 className="text-2xl font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
             No courses available yet
           </h2>
         </div>

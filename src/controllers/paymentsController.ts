@@ -8,12 +8,23 @@ import mongoose from "mongoose";
 import { Payment } from "@/models/Payment";
 import cloudinary from "@/configs/cloudinary";
 
+interface AuthResult {
+    success: boolean;
+    error?: string;
+    user: {
+        userId: string;
+        email?: string;
+        role?: string;
+    };
+}
+
+
 export async function PaymentIntentCreate(request: NextRequest) {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
     try {
         await dbConnect();
 
-        const auth = await validateRequest(request);
+        const auth = await validateRequest(request) as AuthResult;
         if (!auth.success) {
             return NextResponse.json({ error: auth.error }, { status: 401 });
         }

@@ -268,29 +268,3 @@ export const enrollCourse = async (req: CourseData) => {
     }
 };
 
-// ==========================================
-// 7. Check Enrollment Status (New)
-// ==========================================
-export const checkEnrollmentStatus = async (req: CourseData) => {
-    try {
-        await dbConnect();
-        const { userId, courseId } = req;
-
-        if (!userId || !mongoose.Types.ObjectId.isValid(userId) || !courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
-            return NextResponse.json({ success: true, isEnrolled: false }, { status: 200 });
-        }
-
-        const existingEnrollment = await Enrollment.findOne({
-            user: userId,
-            course: courseId
-        });
-
-        return NextResponse.json({
-            success: true,
-            isEnrolled: !!existingEnrollment
-        }, { status: 200 });
-
-    } catch (error: any) {
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-    }
-};
