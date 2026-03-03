@@ -301,17 +301,20 @@ export const Header = () => {
                     </span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  className="cursor-pointer py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-300"
-                >
-                  <Link href="/admin" className="flex items-center">
-                    <ShieldCheck className="mr-3 h-4 w-4 text-amber-500 transition-colors duration-300" />
-                    <span className="font-medium text-slate-700 dark:text-slate-200 transition-colors duration-300">
-                      Admin Panel
-                    </span>
-                  </Link>
-                </DropdownMenuItem>
+                {user?.role === "admin" && (
+                  <DropdownMenuItem
+                    asChild
+                    className="cursor-pointer py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-300"
+                  >
+                    <Link href="/admin" className="flex items-center">
+                      <ShieldCheck className="mr-3 h-4 w-4 text-amber-500 transition-colors duration-300" />
+                      <span className="font-medium text-slate-700 dark:text-slate-200 transition-colors duration-300">
+                        Admin Panel
+                      </span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+
                 <DropdownMenuItem
                   asChild
                   className="cursor-pointer py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-300"

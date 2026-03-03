@@ -7,7 +7,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { handleGoogleAuth } from "@/utils/GoogleAuth";
 import { toast } from "react-hot-toast";
 import { api } from "@/services/api";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/types/apiClient"; // Check karein path sahi ho
 
 export default function Login() {
@@ -49,7 +49,6 @@ export default function Login() {
         });
 
         if (res.success) {
-          // ✅ Token save karein
           apiClient.setToken(res.token || null);
 
           toast.success("Welcome back!", { id: loadingToast });
@@ -80,7 +79,6 @@ export default function Login() {
 
         toast.success("Login Successful", { id: loadingToast });
 
-        // Use replace or push and then refresh
         router.push("/");
         setTimeout(() => router.refresh(), 100);
       }
@@ -92,16 +90,23 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 bg-white">
+    // Main container uses global background colors now
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 transition-colors duration-300">
       <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* Header Text */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-[#0a348f]">Sign in</h1>
-          <p className="text-slate-500">Please Sign in with your account</p>
+          <h1 className="text-3xl font-bold text-[#0a348f] dark:text-blue-400 transition-colors duration-300">
+            Sign in
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 transition-colors duration-300">
+            Please Sign in with your account
+          </p>
         </div>
 
         <form onSubmit={handleSignIn} className="space-y-6">
+          {/* Email Input */}
           <div className="space-y-1">
-            <label className="text-sm font-semibold ml-1 text-slate-700">
+            <label className="text-sm font-semibold ml-1 text-slate-700 dark:text-slate-300 transition-colors duration-300">
               Email Address
             </label>
             <Input
@@ -110,12 +115,13 @@ export default function Login() {
               value={Email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
-              className="h-12 md:h-14 rounded-xl bg-slate-50 border-none px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
+              className="h-12 md:h-14 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-transparent dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 focus-visible:ring-2 focus-visible:ring-[#0a348f] dark:focus-visible:ring-blue-500 transition-all duration-300"
             />
           </div>
 
+          {/* Password Input */}
           <div className="space-y-1">
-            <label className="text-sm font-semibold ml-1 text-slate-700">
+            <label className="text-sm font-semibold ml-1 text-slate-700 dark:text-slate-300 transition-colors duration-300">
               Password
             </label>
             <div className="relative group">
@@ -125,50 +131,55 @@ export default function Login() {
                 value={Password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
-                className="h-12 md:h-14 rounded-xl bg-slate-50 border-none px-4 pr-12 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
+                className="h-12 md:h-14 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-transparent dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 pr-12 focus-visible:ring-2 focus-visible:ring-[#0a348f] dark:focus-visible:ring-blue-500 transition-all duration-300"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0a348f]"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-[#0a348f] dark:hover:text-blue-400 transition-colors duration-300"
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
+
+            {/* Forgot Password */}
             <div className="flex justify-end pt-1">
               <button
                 type="button"
                 onClick={() => router.push("/reset-password")}
-                className="text-xs text-slate-400 hover:text-[#0a348f] transition-colors font-medium"
+                className="text-xs text-slate-400 dark:text-slate-500 hover:text-[#0a348f] dark:hover:text-blue-400 transition-colors font-medium"
               >
                 Forgot Password?
               </button>
             </div>
           </div>
 
+          {/* Submit Button */}
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-[#0a348f] hover:bg-blue-900 h-12 md:h-14 rounded-xl font-bold text-lg shadow-lg shadow-blue-50 transition-all active:scale-95"
+            className="w-full bg-[#0a348f] dark:bg-blue-600 text-white hover:bg-blue-900 dark:hover:bg-blue-700 h-12 md:h-14 rounded-xl font-bold text-lg shadow-lg shadow-blue-50 dark:shadow-none transition-all active:scale-95 duration-300"
           >
             {isLoading ? <Loader2 className="animate-spin" /> : "SIGN IN"}
           </Button>
         </form>
 
+        {/* Divider */}
         <div className="relative flex items-center py-2">
-          <div className="grow border-t border-slate-200"></div>
-          <span className="shrink mx-4 text-slate-400 text-xs uppercase tracking-widest">
+          <div className="grow border-t border-slate-200 dark:border-slate-800 transition-colors duration-300"></div>
+          <span className="shrink mx-4 text-slate-400 dark:text-slate-500 text-xs uppercase tracking-widest transition-colors duration-300">
             Or
           </span>
-          <div className="grow border-t border-slate-200"></div>
+          <div className="grow border-t border-slate-200 dark:border-slate-800 transition-colors duration-300"></div>
         </div>
 
+        {/* Google Button */}
         <Button
           type="button"
           onClick={onGoogleClick}
           disabled={isLoading}
           variant="outline"
-          className="w-full h-12 md:h-14 rounded-xl font-bold text-lg flex gap-3 hover:bg-slate-50 border-slate-200"
+          className="w-full h-12 md:h-14 rounded-xl font-bold text-lg flex gap-3 text-slate-700 dark:text-slate-200 bg-transparent border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-300"
         >
           <img
             src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
@@ -178,11 +189,12 @@ export default function Login() {
           <span>Sign In with Google</span>
         </Button>
 
-        <p className="text-center text-sm text-slate-500 pt-2">
+        {/* Signup Link */}
+        <p className="text-center text-sm text-slate-500 dark:text-slate-400 pt-2 transition-colors duration-300">
           Don't have an account?{" "}
           <button
             onClick={() => router.push("/signup")}
-            className="text-[#0a348f] font-bold hover:underline"
+            className="text-[#0a348f] dark:text-blue-400 font-bold hover:underline transition-colors duration-300"
           >
             Sign up
           </button>

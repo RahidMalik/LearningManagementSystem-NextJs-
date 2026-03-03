@@ -48,14 +48,19 @@ export const createCourse = async (req: Request) => {
         const category = data.get("category") || "General";
         const thumbnailFile = data.get("thumbnail") as File;
         const videoFile = data.get("videoFile") as File;
+        const instructorName = data.get("instructorName") as string;
+        const instructorImageFile = data.get("instructorImage") as File;
 
-        if (!title || !price || !thumbnailFile || !videoFile || !category) {
+        // Validation
+
+        if (!title || !price || !thumbnailFile || !videoFile || !category || !instructorName || !instructorImageFile) {
             return NextResponse.json({ error: "Missing required fields!" }, { status: 400 });
         }
 
         const [thumbnailUrl, videoUrl] = await Promise.all([
             uploadToCloudinary(thumbnailFile, "image"),
-            uploadToCloudinary(videoFile, "video")
+            uploadToCloudinary(videoFile, "video"),
+            uploadToCloudinary(instructorImageFile, "image")
         ]);
 
         const newCourse = await Course.create({
@@ -64,7 +69,8 @@ export const createCourse = async (req: Request) => {
             category,
             thumbnail: thumbnailUrl,
             videoUrl: videoUrl,
-            instructor: "admin"
+            instructorName: instructorName,
+            instructorImage: instructorImageFile,
         });
 
         return NextResponse.json({
@@ -249,7 +255,7 @@ export const enrollCourse = async (req: CourseData) => {
         const createdEnroll = await Enrollment.create({
             user: userId,
             course: courseId,
-            progress: 0 // Default progress set kar dein
+            progress: 0
         });
 
         // 5. Re-fetch with Populate (Taake frontend ko full data mile)

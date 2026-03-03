@@ -31,19 +31,21 @@ export default function AllCoursesPage() {
         const coursesArray = res.courses || res.data?.courses || [];
 
         if (Array.isArray(coursesArray)) {
-          const formattedData = coursesArray.map((c: any) => ({
-            ...c,
-            _id: c._id?.toString() || c.id,
-            image:
-              c.thumbnail ||
-              c.image ||
-              "https://placehold.co/600x400?text=Course",
-            category: c.category || "Development",
-            progress: 50,
-            price: Number(c.price) || 0,
-            instructor: c.instructor || "Cybex Team",
-            videoCount: c.lectures?.length || 0,
-          }));
+          const formattedData = coursesArray.map((c: any) => {
+            return {
+              ...c,
+              _id: c._id?.toString() || c.id,
+              image:
+                c.thumbnail ||
+                c.image ||
+                "https://placehold.co/600x400?text=Course",
+              category: c.category || "Tech",
+              price: Number(c.price) || 0,
+              instructor: c.instructorName || "Cybex Team",
+              instructorImage: c.instructorImage || null,
+            } as ICourse;
+          });
+
           setCourses(formattedData);
         }
       } catch (err: any) {
@@ -52,6 +54,7 @@ export default function AllCoursesPage() {
         setLoading(false);
       }
     };
+
     fetchAllCourses();
   }, []);
 
@@ -134,13 +137,14 @@ export default function AllCoursesPage() {
                 className="block transition-all duration-300 hover:scale-[1.03] hover:z-10 focus-within:ring-4 focus-within:ring-blue-500/50 rounded-[32px]"
               >
                 <CourseCard
-                  id={course._id}
+                  _id={course._id}
                   title={course.title}
                   instructor={course.instructor!}
+                  instructorImage={course.instructorImage}
                   image={course.image!}
                   category={course.category}
                   price={course.price}
-                  videoCount={(course as any).videoCount}
+                  lectures={(course as any).lectures?.length || 0}
                 />
               </div>
             ))}

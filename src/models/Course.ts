@@ -23,9 +23,13 @@ const CourseSchema = new mongoose.Schema({
     videoUrl: {
         type: String
     },
-    instructor: {
+    instructorName: {
         type: String,
-        default: "admin"
+        required: true
+    },
+    instructorImage: {
+        type: String,
+        required: true
     },
     createdAt: {
         type: Date,

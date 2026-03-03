@@ -112,94 +112,104 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 bg-white">
+    // Main container (Removed bg-white, added theme transitions)
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 transition-colors duration-300">
       <div className="w-full max-w-sm space-y-6 animate-in slide-in-from-right-4 duration-300">
+        {/* Header Text */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-[#0a348f]">Sign Up</h1>
-          <p className="text-slate-500 text-sm px-2">
+          <h1 className="text-3xl font-bold text-[#0a348f] dark:text-blue-400 transition-colors duration-300">
+            Sign Up
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm px-2 transition-colors duration-300">
             Create an account to begin your Learning Journey
           </p>
         </div>
 
         <form onSubmit={handleSignUp} className="space-y-4">
+          {/* Full Name Input */}
           <Input
             type="text"
             placeholder="Full Name"
             value={fullName}
             onChange={(e) => setFullname(e.target.value)}
             disabled={isLoading}
-            className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
+            className="h-14 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-transparent dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 focus-visible:ring-2 focus-visible:ring-[#0a348f] dark:focus-visible:ring-blue-500 transition-all duration-300"
           />
+
+          {/* Email Input */}
           <Input
             type="email"
             placeholder="Email"
             value={Email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={isLoading}
-            className="h-14 rounded-xl border-none bg-slate-50 px-4 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
+            className="h-14 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-transparent dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 focus-visible:ring-2 focus-visible:ring-[#0a348f] dark:focus-visible:ring-blue-500 transition-all duration-300"
           />
 
           {/* Password Input with Toggle */}
-          <div className="relative">
+          <div className="relative group">
             <Input
               type={showPassword ? "text" : "password"}
               placeholder="Password"
               value={Password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
-              className="h-14 rounded-xl border-none bg-slate-50 px-4 pr-12 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
+              className="h-14 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-transparent dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 pr-12 focus-visible:ring-2 focus-visible:ring-[#0a348f] dark:focus-visible:ring-blue-500 transition-all duration-300"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-blue-400 transition-colors"
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
 
           {/* Confirm Password Input with Toggle */}
-          <div className="relative">
+          <div className="relative group">
             <Input
               type={showConfirmPassword ? "text" : "password"}
               placeholder="Confirm Password"
               value={ConfirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={isLoading}
-              className="h-14 rounded-xl border-none bg-slate-50 px-4 pr-12 focus-visible:ring-1 focus-visible:ring-[#0a348f]"
+              className="h-14 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-transparent dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 pr-12 focus-visible:ring-2 focus-visible:ring-[#0a348f] dark:focus-visible:ring-blue-500 transition-all duration-300"
             />
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-blue-400 transition-colors"
             >
               {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
 
+          {/* Submit Button */}
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full h-12 md:h-14 bg-[#0a348f] hover:bg-[#0d275f] rounded-xl font-bold text-lg mt-2 transition-all active:scale-95 shadow-lg shadow-blue-100"
+            className="w-full h-12 md:h-14 bg-[#0a348f] dark:bg-blue-600 text-white hover:bg-[#0d275f] dark:hover:bg-blue-700 rounded-xl font-bold text-lg mt-2 transition-all active:scale-95 shadow-lg shadow-blue-100 dark:shadow-none duration-300"
           >
             {isLoading ? <Loader2 className="animate-spin" /> : "Sign Up"}
           </Button>
         </form>
 
+        {/* Divider */}
         <div className="relative flex items-center py-2">
-          <div className="grow border-t border-slate-200"></div>
-          <span className="shrink mx-4 text-slate-400 text-xs uppercase">
+          <div className="grow border-t border-slate-200 dark:border-slate-800 transition-colors duration-300"></div>
+          <span className="shrink mx-4 text-slate-400 dark:text-slate-500 text-xs uppercase transition-colors duration-300">
             Or
           </span>
-          <div className="grow border-t border-slate-200"></div>
+          <div className="grow border-t border-slate-200 dark:border-slate-800 transition-colors duration-300"></div>
         </div>
 
+        {/* Google Button */}
         <Button
           type="button"
           onClick={onGoogleClick}
           disabled={isLoading}
           variant="outline"
-          className="w-full h-12 md:h-14 rounded-xl font-bold text-lg flex gap-3 border-slate-200 hover:bg-slate-50"
+          className="w-full h-12 md:h-14 rounded-xl font-bold text-lg flex gap-3 text-slate-700 dark:text-slate-200 bg-transparent border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-300"
         >
           {isLoading ? (
             <Loader2 className="animate-spin" />
@@ -215,12 +225,13 @@ export default function SignUpPage() {
           )}
         </Button>
 
-        <div className="text-center text-sm text-slate-500 pt-2">
+        {/* Login Link */}
+        <div className="text-center text-sm text-slate-500 dark:text-slate-400 pt-2 transition-colors duration-300">
           Already have an account?{" "}
           <button
             type="button"
             onClick={() => router.push("/login")}
-            className="text-[#0a348f] font-bold hover:underline"
+            className="text-[#0a348f] dark:text-blue-400 font-bold hover:underline transition-colors duration-300"
           >
             Sign in Here
           </button>

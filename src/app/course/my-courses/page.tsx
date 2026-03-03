@@ -8,19 +8,14 @@ import {
   ShoppingBag,
   Sparkles,
   ArrowRight,
+  BookOpen,
 } from "lucide-react";
 import { api } from "@/services/api";
 
-export interface ICourse {
-  id: string;
-  title: string;
-  instructor: string;
-  progress: number;
-  image: string;
-}
-
+// ICourse interface humne already global/api se import ki hui thi,
+// lekin backend API res.data.course ki form mein data bhejti hai My Courses mein
 export default function StudentDashboard() {
-  const [courses, setCourses] = useState<ICourse[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,14 +30,20 @@ export default function StudentDashboard() {
           const formattedData = res.data
             .filter((item: any) => item && item.course)
             .map((item: any) => ({
-              id: item.course._id,
+              // Nested course object se data extract kar rahe hain
+              _id: item.course._id,
               title: item.course.title,
-              instructor: item.course.instructor || "Admin",
-              progress: item.progress || 0,
+              instructor:
+                item.course.instructorName || item.course.instructor || "Admin",
+              instructorImage: item.course.instructorImage || null,
+              progress: item.progress || 0, // <-- Yahan progress bheji ja rahi hai
               image:
                 item.course.thumbnail ||
                 item.course.image ||
-                "/default-course.png",
+                "https://placehold.co/600x400?text=Course",
+              category: item.course.category || "Tech",
+              price: Number(item.course.price) || 0,
+              lectures: item.course.lectures || [],
             }));
           setCourses(formattedData);
         } else {
@@ -85,12 +86,19 @@ export default function StudentDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors duration-300 space-y-4">
-        <AlertCircle className="text-red-500 dark:text-red-400" size={48} />
-        <p className="text-red-500 dark:text-red-400 font-medium">{error}</p>
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4 text-center px-4 bg-slate-50 dark:bg-slate-900 transition-colors">
+        <div className="p-5 bg-red-50 dark:bg-red-900/20 rounded-full mb-2">
+          <AlertCircle className="text-red-500 dark:text-red-400" size={48} />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+          Oops! Something went wrong
+        </h2>
+        <p className="text-slate-500 dark:text-slate-400 font-medium max-w-md">
+          {error}
+        </p>
         <button
           onClick={() => window.location.reload()}
-          className="px-6 py-3 bg-[#0a348f] text-white rounded-xl hover:bg-blue-800 transition-colors font-bold shadow-md"
+          className="mt-4 bg-[#0a348f] hover:bg-blue-800 text-white rounded-xl h-12 px-8"
         >
           Try Again
         </button>
@@ -148,30 +156,43 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="p-8 space-y-8 bg-slate-50 dark:bg-slate-900 transition-colors duration-300 min-h-[calc(100vh-4rem)]">
-      <div className="space-y-2">
-        <h1 className="text-4xl font-black text-[#0a348f] dark:text-blue-400 tracking-tight">
-          My Learning
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 text-lg">
-          Welcome back! You have{" "}
-          <span className="font-bold text-slate-700 dark:text-slate-200">
-            {courses.length}
-          </span>{" "}
-          courses in progress.
-        </p>
+    <div className="p-8 space-y-10 bg-slate-50 dark:bg-slate-900 min-h-[calc(100vh-4rem)] transition-colors duration-300">
+      {/* Header Section (All Courses jaisa hi banaya hai) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-black text-[#0a348f] dark:text-blue-400 flex items-center gap-3 tracking-tight uppercase">
+            <BookOpen className="text-blue-600 dark:text-blue-500" size={32} />
+            My Learning
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 text-lg">
+            Welcome back! You have{" "}
+            <span className="text-blue-600 dark:text-blue-400 font-bold">
+              {courses.length}
+            </span>{" "}
+            courses in progress.
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {/* Courses Grid (All Courses ki tarah responsive aur beautiful) */}
+      <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {courses.map((course) => (
-          <Link
-            href={`/course/${course.id}`}
-            key={course.id}
-            // Transition add kiya taake link element par bhi smooth hover aaye
-            className="block transition-all hover:scale-[1.03] hover:shadow-xl dark:hover:shadow-blue-900/20 rounded-[32px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          <div
+            key={course._id}
+            className="block transition-all duration-300 hover:scale-[1.03] hover:z-10 focus-within:ring-4 focus-within:ring-blue-500/50 rounded-[32px] h-full"
           >
-            <CourseCard {...course} />
-          </Link>
+            <CourseCard
+              _id={course._id}
+              title={course.title}
+              instructor={course.instructor}
+              instructorImage={course.instructorImage}
+              image={course.image}
+              category={course.category}
+              price={course.price}
+              lectures={course.lectures}
+              progress={course.progress}
+            />
+          </div>
         ))}
       </div>
     </div>

@@ -21,11 +21,11 @@ export interface ICourse {
     _id: string;
     title: string;
     instructor: string;
+    instructorImage: string;
     price: number;
     image: string;
     progress?: number;
     description?: string;
-    // UI ke liye extra optional fields
     thumbnail?: string;
     videoUrl?: string;
     lectures?: any[];

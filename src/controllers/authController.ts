@@ -9,8 +9,9 @@ import cloudinary from "@/configs/cloudinary";
 // --- Validations Helpers ---
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
 // ==========================================
-//  2. Autentication Controller
+//  1. Register Controller
 // ==========================================
 export const registerUser = async (req: Request) => {
     try {
@@ -39,6 +40,16 @@ export const registerUser = async (req: Request) => {
             }, { status: 400 });
         }
 
+        //  ADMIN REGISTRATION CHECK
+        let assignedRole = "student"; // Default role
+        if (email.toLowerCase() === process.env.ADMIN_EMAIL?.toLowerCase()) {
+            // Agar admin email hai, to password .env wale password se match hona chahiye
+            if (password !== process.env.ADMIN_PASSWORD) {
+                return NextResponse.json({ error: "Invalid Admin Password! Registration denied." }, { status: 403 });
+            }
+            assignedRole = "admin"; // Password theek hai, to isay Admin bana do
+        }
+
         // 5. Existing User Check
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -48,15 +59,18 @@ export const registerUser = async (req: Request) => {
         // 6. Password Hashing
         const hashPassword = await bcrypt.hash(password, 10);
 
+        // 7. Create User with Dynamic Role
         const newUser = await User.create({
             name,
             email,
-            password: hashPassword
+            password: hashPassword,
+            role: assignedRole
         });
+
         const { password: _, ...userWithoutPassword } = newUser._doc;
 
-        // Don't return Password for security reasons
-        const token = signToken({ userId: newUser._id, email: newUser.email });
+        // 8. Generate Token immediately after successful registration
+        const token = signToken({ userId: newUser._id, email: newUser.email, role: newUser.role });
 
         return NextResponse.json({ success: true, user: userWithoutPassword, token });
 
@@ -66,6 +80,9 @@ export const registerUser = async (req: Request) => {
     }
 };
 
+// ==========================================
+//  2. Login Controller
+// ==========================================
 export const Login = async (req: Request) => {
     try {
         await dbconnect();
@@ -93,8 +110,7 @@ export const Login = async (req: Request) => {
         }
 
         // 4. Success Response
-        const token = signToken({ userId: user._id, email: user.email });
-
+        const token = signToken({ userId: user._id, email: user.email, role: user.role });
 
         const { password: _, ...userData } = user._doc;
         return NextResponse.json({
@@ -109,38 +125,47 @@ export const Login = async (req: Request) => {
     }
 };
 
+// ==========================================
 // 3. Firebase Sync (Google Auth)
+// ==========================================
 export const syncFirebaseUser = async (req: Request) => {
     try {
         await dbconnect();
         const { name, email, photoURL, uid } = await req.json();
 
+        // GOOGLE AUTH ADMIN CHECK
+        const isAdmin = email.toLowerCase() === process.env.ADMIN_EMAIL?.toLowerCase();
+        const assignedRole = isAdmin ? "admin" : "student";
+
         let user = await User.findOne({ email });
 
         if (user) {
-            if (!user.name) {
-                user.name = name;
+            // Update fields if they are missing
+            let isUpdated = false;
+            if (!user.name) { user.name = name; isUpdated = true; }
+            if (!user.photoURL) { user.photoURL = photoURL; isUpdated = true; }
+            if (!user.googleId) { user.googleId = uid; isUpdated = true; }
+
+            // Ensure Admin role is enforced if they used Google Auth
+            if (isAdmin && user.role !== "admin") {
+                user.role = "admin";
+                isUpdated = true;
             }
 
-            if (!user.photoURL) {
-                user.photoURL = photoURL;
-            }
-
-            if (!user.googleId) {
-                user.googleId = uid;
-            }
-            await user.save();
+            if (isUpdated) await user.save();
         } else {
+            // Create new Google User
             user = await User.create({
                 name,
                 email,
                 photoURL,
                 googleId: uid,
-                isVerified: true
+                isVerified: true,
+                role: assignedRole
             });
         }
 
-        const token = signToken({ userId: user._id, email: user.email });
+        const token = signToken({ userId: user._id, email: user.email, role: user.role });
 
         const { password: _, ...userData } = user._doc;
 
@@ -154,8 +179,9 @@ export const syncFirebaseUser = async (req: Request) => {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
+
 // ==========================================
-//  2. Update Profile Controller
+//  4. Update Profile Controller
 // ==========================================
 export const updateProfile = async (req: Request) => {
     try {
@@ -181,8 +207,9 @@ export const updateProfile = async (req: Request) => {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
+
 // ==========================================
-//  3.  Get me controller (Profile Fetching)
+//  5.  Get me controller (Profile Fetching)
 // ==========================================
 export const getMe = async (req: Request) => {
     try {
@@ -211,8 +238,9 @@ export const getMe = async (req: Request) => {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 };
+
 // ==========================================
-//   4. Update Profile Photo Controller
+//   6. Update Profile Photo Controller
 // ==========================================
 export const UpdateProfilePhoto = async (req: Request) => {
     try {

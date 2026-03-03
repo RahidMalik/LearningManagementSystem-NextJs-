@@ -58,7 +58,7 @@ export default function SettingsPage() {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    // window.location.href = '/login'; // Redirect if needed
+    window.location.href = "/login";
   };
 
   const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
