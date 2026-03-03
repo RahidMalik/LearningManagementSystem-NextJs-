@@ -1,12 +1,13 @@
+// src/app/api/admin/courses/[id]/route.ts
 import { updateCourse, deleteCourse } from "@/controllers/courseController";
-import dbConnect from "@/configs/mongodb"
+import { NextRequest } from "next/server";
 
-export async function PUT(req: Request, context: any) {
-    await dbConnect();
-    return updateCourse(req, context);
+export const maxDuration = 60;
+
+export async function PUT(req: NextRequest, context: { params: any }) {
+    return await updateCourse(req, context);
 }
 
-export async function DELETE(req: Request, context: any) {
-    await dbConnect();
-    return deleteCourse(req, context);
+export async function DELETE(req: NextRequest, context: { params: any }) {
+    return await deleteCourse(req, context);
 }

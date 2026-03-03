@@ -1,3 +1,4 @@
+// src/controllers/courseController.ts
 import cloudinary from "@/configs/cloudinary";
 import dbConnect from "@/configs/mongodb";
 import { Course } from "@/models/Course";
@@ -11,33 +12,66 @@ export interface CourseData {
 }
 
 // ============================================================
-// --- HELPER: Cloudinary Upload ---
+// HELPER: Cloudinary Upload
 // ============================================================
-const uploadToCloudinary = async (file: File, resourceType: "image" | "video"): Promise<string> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
+const uploadToCloudinary = async (
+    file: File,
+    resourceType: "image" | "video"
+): Promise<string> => {
+    const buffer = Buffer.from(await file.arrayBuffer());
     return new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-            {
-                folder: "LMS_COURSES",
-                resource_type: resourceType,
-            },
-            (err, result) => {
-                if (err) {
-                    console.error("Cloudinary Upload Error:", err);
-                    return reject(err);
+        cloudinary.uploader
+            .upload_stream(
+                { folder: "LMS_COURSES", resource_type: resourceType },
+                (err, result) => {
+                    if (err) return reject(err);
+                    resolve(result?.secure_url || "");
                 }
-                resolve(result?.secure_url || "");
-            }
-        );
-        uploadStream.end(buffer);
+            )
+            .end(buffer);
     });
 };
 
-// ==========================================
-// 1. Create Course (Admin Only)
-// ==========================================
+// ============================================================
+// HELPER: Parse + upload lectures
+// ============================================================
+const processLectures = async (
+    formData: FormData,
+    existingLectures: any[] = []
+): Promise<{ title: string; videoUrl: string }[]> => {
+    const lecturesRaw = formData.get("lectures") as string | null;
+    if (!lecturesRaw) return existingLectures;
+
+    let lecturesMeta: {
+        title: string;
+        videoUrl: string;
+        hasNewVideo: boolean;
+        fileIndex: number;
+    }[] = [];
+
+    try { lecturesMeta = JSON.parse(lecturesRaw); } catch { return existingLectures; }
+
+    const results = await Promise.all(
+        lecturesMeta.map(async (meta) => {
+            // New video file uploaded?
+            if (meta.hasNewVideo) {
+                const videoFile = formData.get(`lectureVideo_${meta.fileIndex}`) as File | null;
+                if (videoFile instanceof File && videoFile.size > 0) {
+                    const url = await uploadToCloudinary(videoFile, "video");
+                    return { title: meta.title, videoUrl: url };
+                }
+            }
+            // Keep existing URL
+            return { title: meta.title, videoUrl: meta.videoUrl || "" };
+        })
+    );
+
+    return results;
+};
+
+// ============================================================
+// 1. CREATE COURSE
+// ============================================================
 export const createCourse = async (req: Request) => {
     try {
         await dbConnect();
@@ -45,38 +79,54 @@ export const createCourse = async (req: Request) => {
 
         const title = data.get("title") as string;
         const price = data.get("price") as string;
-        const category = data.get("category") || "General";
-        const thumbnailFile = data.get("thumbnail") as File;
-        const videoFile = data.get("videoFile") as File;
-        const instructorName = data.get("instructorName") as string;
-        const instructorImageFile = data.get("instructorImage") as File;
+        const category = (data.get("category") as string) || "General";
+        const description = (data.get("description") as string) || "";
+        const instructor = (data.get("instructor") as string) || "";
+        const level = (data.get("level") as string) || "Beginner";
+        const language = (data.get("language") as string) || "Urdu";
+        const hours = (data.get("hours") as string) || "";
+        const rating = (data.get("rating") as string) || "0";
+        const badge = (data.get("badge") as string) || "New Release";
 
-        // Validation
-
-        if (!title || !price || !thumbnailFile || !videoFile || !category || !instructorName || !instructorImageFile) {
-            return NextResponse.json({ error: "Missing required fields!" }, { status: 400 });
+        if (!title || !price || !category) {
+            return NextResponse.json(
+                { error: "title, price and category are required" },
+                { status: 400 }
+            );
         }
 
-        const [thumbnailUrl, videoUrl] = await Promise.all([
-            uploadToCloudinary(thumbnailFile, "image"),
-            uploadToCloudinary(videoFile, "video"),
-            uploadToCloudinary(instructorImageFile, "image")
+        // Optional media files
+        const thumbnailFile = data.get("thumbnail") as File | null;
+        const introVideoFile = data.get("videoFile") as File | null;
+        const instructorImageFile = data.get("instructorImage") as File | null;
+
+        // Upload optional files in parallel
+        const [thumbnailUrl, videoUrl, instructorImageUrl] = await Promise.all([
+            thumbnailFile instanceof File && thumbnailFile.size > 0
+                ? uploadToCloudinary(thumbnailFile, "image") : Promise.resolve(""),
+            introVideoFile instanceof File && introVideoFile.size > 0
+                ? uploadToCloudinary(introVideoFile, "video") : Promise.resolve(""),
+            instructorImageFile instanceof File && instructorImageFile.size > 0
+                ? uploadToCloudinary(instructorImageFile, "image") : Promise.resolve(""),
         ]);
 
+        // Process lectures (each may have its own video file)
+        const lectures = await processLectures(data);
+
         const newCourse = await Course.create({
-            title,
-            price: Number(price),
-            category,
+            title, price: Number(price), category, description,
+            instructor,
+            instructorImage: instructorImageUrl,
+            level, language, hours, rating, badge,
             thumbnail: thumbnailUrl,
             videoUrl: videoUrl,
-            instructorName: instructorName,
-            instructorImage: instructorImageFile,
+            lectures,
         });
 
         return NextResponse.json({
             success: true,
             message: "Course published successfully!",
-            course: newCourse
+            course: newCourse,
         }, { status: 201 });
 
     } catch (error: any) {
@@ -84,18 +134,16 @@ export const createCourse = async (req: Request) => {
     }
 };
 
-// ==========================================
-// 2. Update Course (Admin Only)
-// ==========================================
+// ============================================================
+// 2. UPDATE COURSE
+// ============================================================
 export const updateCourse = async (req: Request, { params }: { params: any }) => {
     try {
         await dbConnect();
-
-        const resolvedParams = await params;
-        const id = resolvedParams.id;
+        const { id } = await params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return NextResponse.json({ error: "Invalid Course ID Format" }, { status: 400 });
+            return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
         }
 
         const courseExist = await Course.findById(id);
@@ -104,35 +152,48 @@ export const updateCourse = async (req: Request, { params }: { params: any }) =>
         }
 
         const formData = await req.formData();
-        let thumbnailUrl = courseExist.thumbnail;
-        let videoUrl = courseExist.videoUrl;
 
-        const newThumbnail = formData.get("thumbnail");
-        if (newThumbnail instanceof File && newThumbnail.size > 0) {
-            thumbnailUrl = await uploadToCloudinary(newThumbnail, "image");
-        }
+        // Keep existing values if not replaced
+        let thumbnailUrl = courseExist.thumbnail || "";
+        let videoUrl = courseExist.videoUrl || "";
+        let instructorImgUrl = courseExist.instructorImage || "";
+
+        const newThumb = formData.get("thumbnail");
+        if (newThumb instanceof File && newThumb.size > 0)
+            thumbnailUrl = await uploadToCloudinary(newThumb, "image");
 
         const newVideo = formData.get("videoFile");
-        if (newVideo instanceof File && newVideo.size > 0) {
+        if (newVideo instanceof File && newVideo.size > 0)
             videoUrl = await uploadToCloudinary(newVideo, "video");
-        }
 
-        const updatedCourse = await Course.findByIdAndUpdate(
-            id,
-            {
-                title: formData.get("title") || courseExist.title,
-                price: Number(formData.get("price")) || courseExist.price,
-                category: formData.get("category") || courseExist.category,
-                thumbnail: thumbnailUrl,
-                videoUrl: videoUrl
-            },
-            { new: true }
-        );
+        const newInstructorImg = formData.get("instructorImage");
+        if (newInstructorImg instanceof File && newInstructorImg.size > 0)
+            instructorImgUrl = await uploadToCloudinary(newInstructorImg, "image");
+
+        // Process lectures with existing as fallback
+        const lectures = await processLectures(formData, courseExist.lectures || []);
+
+        const updatedCourse = await Course.findByIdAndUpdate(id, {
+            title: formData.get("title") || courseExist.title,
+            price: Number(formData.get("price")) || courseExist.price,
+            category: formData.get("category") || courseExist.category,
+            description: formData.get("description") ?? courseExist.description,
+            instructor: formData.get("instructor") ?? courseExist.instructor,
+            instructorImage: instructorImgUrl,
+            level: formData.get("level") || courseExist.level,
+            language: formData.get("language") || courseExist.language,
+            hours: formData.get("hours") ?? courseExist.hours,
+            rating: formData.get("rating") ?? courseExist.rating,
+            badge: formData.get("badge") || courseExist.badge,
+            thumbnail: thumbnailUrl,
+            videoUrl: videoUrl,
+            lectures,
+        }, { new: true });
 
         return NextResponse.json({
             success: true,
             message: "Course updated successfully",
-            course: updatedCourse
+            course: updatedCourse,
         }, { status: 200 });
 
     } catch (error: any) {
@@ -140,55 +201,49 @@ export const updateCourse = async (req: Request, { params }: { params: any }) =>
     }
 };
 
-// ==========================================
-// 3. Delete Course (Admin Only)
-// ==========================================
+// ============================================================
+// 3. DELETE COURSE
+// ============================================================
 export const deleteCourse = async (req: Request, { params }: { params: any }) => {
     try {
         await dbConnect();
-        const resolvedParams = await params;
-        const id = resolvedParams.id;
+        const { id } = await params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return NextResponse.json({ error: "Invalid ID Format" }, { status: 400 });
         }
 
-        const courseDelete = await Course.findByIdAndDelete(id);
-
-        if (!courseDelete) {
+        const deleted = await Course.findByIdAndDelete(id);
+        if (!deleted) {
             return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
         }
 
-        return NextResponse.json({
-            success: true,
-            message: "Course deleted successfully"
-        }, { status: 200 });
+        return NextResponse.json(
+            { success: true, message: "Course deleted" },
+            { status: 200 }
+        );
 
     } catch (error: any) {
         return NextResponse.json({ success: false, message: error.message }, { status: 500 });
     }
 };
 
-// ==========================================
-// 4. Get All Courses (Public)
-// ==========================================
+// ============================================================
+// 4. GET ALL COURSES
+// ============================================================
 export const getAllCourses = async () => {
     try {
         await dbConnect();
         const courses = await Course.find({}).sort({ createdAt: -1 });
-        return NextResponse.json({
-            success: true,
-            count: courses.length,
-            courses: courses
-        });
+        return NextResponse.json({ success: true, count: courses.length, courses });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
 
-// ==========================================
-// 5. Get Single Course Details (For Students)
-// ==========================================
+// ============================================================
+// 5. GET SINGLE COURSE
+// ============================================================
 export const getCourseDetails = async (req: Request, { params }: { params: any }) => {
     try {
         await dbConnect();
@@ -199,78 +254,52 @@ export const getCourseDetails = async (req: Request, { params }: { params: any }
         }
 
         const course = await Course.findById(id);
-
         if (!course) {
-            return NextResponse.json({ error: "Course not found!" }, { status: 404 });
+            return NextResponse.json({ error: "Course not found" }, { status: 404 });
         }
 
-        return NextResponse.json({
-            success: true,
-            data: course
-        }, { status: 200 });
+        return NextResponse.json({ success: true, data: course }, { status: 200 });
 
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
 
-// ==========================================
-// 6. Enroll Course (Private)
-// ==========================================
+// ============================================================
+// 6. ENROLL COURSE
+// ============================================================
 export const enrollCourse = async (req: CourseData) => {
     try {
         await dbConnect();
         const { userId, courseId } = req;
 
-        // 1. Validation (User aur Course dono ki ID check karein)
-        if (!userId || userId === "" || !mongoose.Types.ObjectId.isValid(userId)) {
-            return NextResponse.json({ error: "Invalid or missing User ID" }, { status: 400 });
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+            return NextResponse.json({ error: "Invalid User ID" }, { status: 400 });
         }
-
         if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
             return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
         }
 
-        // 2. Check if course exists
         const courseExist = await Course.findById(courseId);
         if (!courseExist) {
             return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
         }
 
-        // 3. Check for existing enrollment
-        const existingEnrollment = await Enrollment.findOne({
-            user: userId,
-            course: courseId
-        });
-
-        if (existingEnrollment) {
+        const existing = await Enrollment.findOne({ user: userId, course: courseId });
+        if (existing) {
             return NextResponse.json({
-                success: true,
-                message: "You are already enrolled",
-                alreadyEnrolled: true
+                success: true, message: "Already enrolled", alreadyEnrolled: true,
             }, { status: 200 });
         }
 
-        // 4. Create Enrollment
-        const createdEnroll = await Enrollment.create({
-            user: userId,
-            course: courseId,
-            progress: 0
+        const created = await Enrollment.create({
+            user: userId, course: courseId, progress: 0,
         });
+        const enrolled = await Enrollment.findById(created._id).populate("course").lean();
 
-        // 5. Re-fetch with Populate (Taake frontend ko full data mile)
-        const newEnroll = await Enrollment.findById(createdEnroll._id)
-            .populate("course")
-            .lean();
-
-        return NextResponse.json({
-            success: true,
-            data: newEnroll || [] // Empty array
-        }, { status: 200 }); // 201 Created is better here
+        return NextResponse.json({ success: true, data: enrolled || [] }, { status: 201 });
 
     } catch (error: any) {
-        console.error("Enrollment Controller Error:", error.message);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 };
-

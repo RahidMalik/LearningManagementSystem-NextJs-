@@ -160,7 +160,6 @@ export default function CourseDetailPage() {
       <div className="flex flex-col lg:flex-row max-w-350 mx-auto">
         {/* LEFT — Video + Details */}
         <div className="flex-1 lg:max-w-[calc(100%-380px)]">
-          {/* 🚀 FIX: Video Container Container - `aspect-video` lagaya hai taake 16:9 box banay */}
           <div className="w-full aspect-video bg-black relative lg:rounded-br-2xl shadow-md overflow-hidden">
             {activeVideo ? (
               <CybexPlayer videoUrl={activeVideo} />

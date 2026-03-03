@@ -81,7 +81,6 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* Aapke Custom light theme variables idhar add kiye hain taake transition smooth ho */
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafc;
   --bg-card: #ffffff;
@@ -194,4 +193,17 @@
 }
 .border-theme-strong {
   border-color: var(--border-strong);
+}
+@layer base {
+  /* Chrome, Safari, Edge, Opera ke liye */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Firefox ke liye */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
 }
