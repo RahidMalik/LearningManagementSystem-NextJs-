@@ -1,114 +1,169 @@
 "use client";
 
 import AdminSidebar from "@/components/admin/AdminSidebar";
-import { Save, Bell, Shield, User } from "lucide-react";
-import { useState } from "react";
+import { Save, User, Settings, Camera } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import toast from "react-hot-toast";
+import { api } from "@/services/api";
 
 export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [photo, setPhoto] = useState("");
 
-  const handleSave = () => {
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res: any = await api.getProfile();
+        const user = res?.user || res?.data?.user || res;
+        setName(user?.name || "");
+        setEmail(user?.email || "");
+        setPhoto(user?.photoURL || "");
+      } catch (error) {
+        toast.error("Failed to fetch profile");
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleSave = async () => {
     setLoading(true);
-    setTimeout(() => {
-      toast.success("Settings updated successfully!");
+    try {
+      await api.updateProfile({ name, photoURL: photo });
+      toast.success("Profile updated!");
+    } catch {
+      toast.error("Failed to update");
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
+  const inp =
+    "w-full p-3 border border-slate-200 dark:border-zinc-700 rounded-xl text-sm font-semibold text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#0a348f] dark:focus:border-blue-500 transition-all";
+  const lbl =
+    "block text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5";
+
   return (
-    <div className="flex min-h-screen bg-slate-50/50">
+    <div className="flex min-h-screen ">
       <AdminSidebar />
 
-      <main className="flex-1 p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-black italic uppercase text-slate-900">
-            Admin Settings
-          </h1>
-          <p className="text-slate-500 font-medium">
-            Configure your platform's global preferences
-          </p>
+      <main className="flex-1 overflow-auto">
+        {/* ── Header ── */}
+        <div className="sticky top-0 z-30 backdrop-blur-md border-b border-slate-100 dark:border-zinc-800 px-4 sm:px-8 py-4">
+          <div className="flex items-center gap-2">
+            <Settings size={18} className="text-[#0a348f] dark:text-blue-400" />
+            <div>
+              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                Settings
+              </h1>
+              <p className="text-xs text-slate-400 dark:text-zinc-500 font-medium mt-0.5">
+                Manage your admin profile
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Left Column: Form */}
-          <div className="md:col-span-2 space-y-6">
-            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
-              <div className="flex items-center gap-3 text-[#0a348f] mb-2">
-                <User size={20} />
-                <h2 className="font-bold uppercase tracking-wider">
-                  Profile Information
-                </h2>
+        <div className="px-4 sm:px-8 py-6 sm:py-8">
+          <div className="max-w-lg mx-auto space-y-5">
+            {/* ── Avatar card ── */}
+            <div className=" border border-slate-100 dark:border-zinc-800 rounded-3xl p-6 shadow-sm flex flex-col items-center gap-4">
+              <div className="relative">
+                {photo ? (
+                  <img
+                    src={photo}
+                    alt={name}
+                    className="w-20 h-20 rounded-3xl object-cover border-2 border-slate-100 dark:border-zinc-700 shadow-md"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-3xl bg-linear-to-br from-[#0a348f] to-blue-400 flex items-center justify-center shadow-md">
+                    <span className="text-white font-black text-2xl">
+                      {name?.[0]?.toUpperCase() || "A"}
+                    </span>
+                  </div>
+                )}
               </div>
+              <div className="text-center">
+                <p className="font-black text-slate-900 dark:text-white text-base">
+                  {name || "Admin"}
+                </p>
+                <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5">
+                  {email}
+                </p>
+              </div>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-slate-400 ml-1">
-                    Admin Name
-                  </label>
+            {/* ── Form card ── */}
+            <div className=" border rounded-3xl p-6 shadow-sm">
+              <p className="text-[10px] font-black text-[#0a348f] dark:text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+                <User size={11} /> Profile Information
+              </p>
+
+              <div className="space-y-4">
+                {/* Name — editable */}
+                <div>
+                  <label className={lbl}>Admin Name</label>
                   <input
                     type="text"
-                    className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-[#0a348f]"
-                    defaultValue="Rahid Malik"
+                    className={inp}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-slate-400 ml-1">
-                    Public Email
+
+                {/* Email — disabled */}
+                <div>
+                  <label className={lbl}>
+                    Email
+                    <span className="ml-2 normal-case font-semibold text-slate-300 dark:text-zinc-600">
+                      (cannot be changed)
+                    </span>
                   </label>
                   <input
                     type="email"
-                    className="w-full bg-slate-50 border-none p-4 rounded-2xl focus:ring-2 focus:ring-[#0a348f]"
-                    defaultValue="admin@lms.com"
+                    className={
+                      inp + " opacity-50 cursor-not-allowed select-none"
+                    }
+                    value={email}
+                    disabled
                   />
+                  <p className="text-[10px] text-slate-300 dark:text-zinc-600 mt-1.5 ml-1">
+                    Email is tied to your .env config. Contact server admin to
+                    update.
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
-              <div className="flex items-center gap-3 text-[#0a348f] mb-2">
-                <Shield size={20} />
-                <h2 className="font-bold uppercase tracking-wider">
-                  Security Settings
-                </h2>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                <div>
-                  <p className="font-bold text-slate-800">
-                    Two-Factor Authentication
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Secure your admin account
-                  </p>
-                </div>
-                <button className="w-12 h-6 bg-slate-200 rounded-full relative">
-                  <div className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: Actions */}
-          <div className="space-y-4">
-            <div className="bg-[#0a348f] p-8 rounded-[2.5rem] text-white shadow-xl">
-              <h3 className="font-bold mb-4">Quick Actions</h3>
-              <p className="text-blue-200 text-sm mb-6">
-                Don't forget to save your changes before leaving the panel.
-              </p>
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="w-full bg-white text-[#0a348f] py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  "Saving..."
-                ) : (
-                  <>
-                    <Save size={18} /> Save Settings
-                  </>
-                )}
-              </button>
-            </div>
+            {/* ── Save button ── */}
+            <motion.button
+              onClick={handleSave}
+              disabled={loading}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.97 }}
+              className="w-full py-4 bg-[#0a348f] dark:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-blue-200 dark:shadow-blue-900/30 flex items-center justify-center gap-2 hover:bg-blue-800 dark:hover:bg-blue-400 transition-all disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1,
+                      ease: "linear",
+                    }}
+                    className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                  />
+                  Saving...
+                </span>
+              ) : (
+                <>
+                  <Save size={16} /> Save Changes
+                </>
+              )}
+            </motion.button>
           </div>
         </div>
       </main>

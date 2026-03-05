@@ -16,8 +16,6 @@ export default function AllCoursesPage() {
   const [courses, setCourses] = useState<ICourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const coursesPerPage = 20;
 
@@ -27,25 +25,30 @@ export default function AllCoursesPage() {
         setLoading(true);
         setError(null);
         const res: any = await api.getAllCourses();
-
         const coursesArray = res.courses || res.data?.courses || [];
 
         if (Array.isArray(coursesArray)) {
-          const formattedData = coursesArray.map((c: any) => {
-            return {
-              ...c,
-              _id: c._id?.toString() || c.id,
-              image:
-                c.thumbnail ||
-                c.image ||
-                "https://placehold.co/600x400?text=Course",
-              category: c.category || "Tech",
-              price: Number(c.price) || 0,
-              instructor: c.instructorName || "Cybex Team",
-              instructorImage: c.instructorImage || null,
-            } as ICourse;
-          });
-
+          const formattedData = coursesArray.map(
+            (c: any) =>
+              ({
+                ...c,
+                _id: c._id?.toString() || c.id,
+                thumbnail:
+                  c.thumbnail ||
+                  c.image ||
+                  "https://placehold.co/600x400?text=Course",
+                image:
+                  c.thumbnail ||
+                  c.image ||
+                  "https://placehold.co/600x400?text=Course",
+                category: c.category || "Tech",
+                price: Number(c.price) || 0,
+                instructor: c.instructor || c.instructorName || "Cybex Team",
+                instructorImage: c.instructorImage || null,
+                rating: c.rating || "0",
+                lectures: Array.isArray(c.lectures) ? c.lectures : [], // ✅ always array
+              }) as ICourse,
+          );
           setCourses(formattedData);
         }
       } catch (err: any) {
@@ -54,7 +57,6 @@ export default function AllCoursesPage() {
         setLoading(false);
       }
     };
-
     fetchAllCourses();
   }, []);
 
@@ -106,7 +108,6 @@ export default function AllCoursesPage() {
 
   return (
     <div className="p-8 space-y-10 bg-slate-50 dark:bg-slate-900 min-h-[calc(100vh-4rem)] transition-colors duration-300">
-      {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <h1 className="text-4xl font-black text-[#0a348f] dark:text-blue-400 flex items-center gap-3 tracking-tight uppercase">
@@ -126,12 +127,10 @@ export default function AllCoursesPage() {
         </div>
       </div>
 
-      {/* Courses Grid */}
       {currentCourses.length > 0 ? (
         <>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {currentCourses.map((course) => (
-              /* YAHAN FIX KIYA HAI: transition-all, hover scale, aur focus ring add kiya hai */
               <div
                 key={course._id}
                 className="block transition-all duration-300 hover:scale-[1.03] hover:z-10 focus-within:ring-4 focus-within:ring-blue-500/50 rounded-[32px]"
@@ -142,15 +141,16 @@ export default function AllCoursesPage() {
                   instructor={course.instructor!}
                   instructorImage={course.instructorImage}
                   image={course.image!}
+                  thumbnail={course.thumbnail}
                   category={course.category}
                   price={course.price}
-                  lectures={(course as any).lectures?.length || 0}
+                  rating={course.rating}
+                  lectures={course.lectures}
                 />
               </div>
             ))}
           </div>
 
-          {/* Pagination Controls */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center space-x-3 py-12">
               <button
@@ -160,7 +160,6 @@ export default function AllCoursesPage() {
               >
                 <ChevronLeft size={24} />
               </button>
-
               <div className="flex items-center gap-2">
                 {[...Array(totalPages)].map((_, index) => (
                   <button
@@ -176,7 +175,6 @@ export default function AllCoursesPage() {
                   </button>
                 ))}
               </div>
-
               <button
                 disabled={currentPage === totalPages}
                 onClick={() => paginate(currentPage + 1)}

@@ -12,8 +12,6 @@ import {
 } from "lucide-react";
 import { api } from "@/services/api";
 
-// ICourse interface humne already global/api se import ki hui thi,
-// lekin backend API res.data.course ki form mein data bhejti hai My Courses mein
 export default function StudentDashboard() {
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,13 +28,12 @@ export default function StudentDashboard() {
           const formattedData = res.data
             .filter((item: any) => item && item.course)
             .map((item: any) => ({
-              // Nested course object se data extract kar rahe hain
               _id: item.course._id,
               title: item.course.title,
               instructor:
                 item.course.instructorName || item.course.instructor || "Admin",
               instructorImage: item.course.instructorImage || null,
-              progress: item.progress || 0, // <-- Yahan progress bheji ja rahi hai
+              progress: item.progress || 0,
               image:
                 item.course.thumbnail ||
                 item.course.image ||
@@ -157,7 +154,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="p-8 space-y-10 bg-slate-50 dark:bg-slate-900 min-h-[calc(100vh-4rem)] transition-colors duration-300">
-      {/* Header Section (All Courses jaisa hi banaya hai) */}
+      {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <h1 className="text-4xl font-black text-[#0a348f] dark:text-blue-400 flex items-center gap-3 tracking-tight uppercase">
@@ -174,7 +171,7 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      {/* Courses Grid (All Courses ki tarah responsive aur beautiful) */}
+      {/* Courses Grid */}
       <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {courses.map((course) => (
           <div

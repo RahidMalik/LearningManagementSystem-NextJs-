@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  Star,
-  PlayCircle,
-  Tag,
-  ArrowUpRight,
-  Lock,
-  GraduationCap,
-} from "lucide-react";
+import { Star, PlayCircle, Tag, Lock, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ICourse } from "@/services/api";
@@ -18,14 +11,24 @@ export const CourseCard = ({
   instructor,
   instructorImage,
   image,
+  thumbnail,
   lectures,
   price,
-  category = "Tech",
+  category,
   progress,
+  rating,
 }: ICourse) => {
   const router = useRouter();
   const isFree = price === 10 || price === 0;
   const isEnrolled = typeof progress === "number";
+
+  const displayImage = thumbnail || image || "/placeholder-course.jpg";
+
+  const displayRating = rating ? Number(rating).toFixed(1) : "4.9";
+
+  const lectureCount = Array.isArray(lectures) ? lectures.length : 0;
+
+  const instructorName = instructor || "Instructor";
 
   return (
     <div
@@ -35,7 +38,6 @@ export const CourseCard = ({
       {/* Glow shadow on hover */}
       <div className="absolute -inset-0.5 bg-linear-to-br from-blue-600/0 via-blue-500/0 to-indigo-500/0 group-hover:from-blue-600/20 group-hover:via-blue-500/10 group-hover:to-indigo-500/20 dark:group-hover:from-blue-500/30 dark:group-hover:via-blue-400/15 dark:group-hover:to-indigo-500/30 rounded-[28px] blur-xl transition-all duration-500 -z-10" />
 
-      {/* Main Card Container (Added h-full and flex col to equalize heights) */}
       <div className="relative bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[24px] overflow-hidden transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_24px_48px_-8px_rgba(10,52,143,0.18)] dark:group-hover:shadow-[0_24px_48px_-8px_rgba(59,130,246,0.15)] flex flex-col h-full">
         {/* ── IMAGE ── */}
         <div
@@ -43,11 +45,14 @@ export const CourseCard = ({
           style={{ aspectRatio: "16/10" }}
         >
           <Image
-            src={image}
+            src={displayImage}
             alt={title}
             fill
             sizes="(max-width: 768px) 100vw, 400px"
             className="object-cover transition-all duration-700 group-hover:scale-110"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "/placeholder-course.jpg";
+            }}
           />
 
           {/* Dark gradient overlay */}
@@ -65,7 +70,7 @@ export const CourseCard = ({
           <div className="absolute top-3 right-3">
             <span className="inline-flex items-center gap-1 bg-amber-400/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-black text-amber-950">
               <Star size={9} fill="currentColor" stroke="none" />
-              4.9
+              {displayRating}
             </span>
           </div>
 
@@ -83,30 +88,40 @@ export const CourseCard = ({
           </div>
         </div>
 
-        {/* ── CONTENT ── (Flex-grow applied to push bottom row to the end) */}
+        {/* ── CONTENT ── */}
         <div className="p-5 flex flex-col grow">
-          {/* Instructor Area (Removed from top image, placed here) */}
+          {/* Instructor */}
           <div className="flex items-center gap-2 mb-3">
             {instructorImage ? (
               <img
                 src={instructorImage}
-                alt={instructor}
-                className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                alt={instructorName}
+                className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                onError={(e) => {
+                  // ✅ Image load fail hone pe fallback icon
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                  (e.currentTarget
+                    .nextElementSibling as HTMLElement)!.style.display = "flex";
+                }}
               />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-                <GraduationCap
-                  size={12}
-                  className="text-[#0a348f] dark:text-blue-400"
-                />
-              </div>
-            )}
+            ) : null}
+            {/* Fallback icon — shows if no image or image fails */}
+            <div
+              className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 items-center justify-center shrink-0"
+              style={{ display: instructorImage ? "none" : "flex" }}
+            >
+              <GraduationCap
+                size={12}
+                className="text-[#0a348f] dark:text-blue-400"
+              />
+            </div>
+
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate transition-colors duration-300">
-              {instructor}
+              {instructorName}
             </span>
           </div>
 
-          {/* Title (Fixed min-height to maintain card equality) */}
+          {/* Title */}
           <h3 className="font-black text-[16px] leading-snug text-slate-900 dark:text-white line-clamp-2 min-h-11 group-hover:text-[#0a348f] dark:group-hover:text-blue-400 transition-colors duration-300">
             {title}
           </h3>
@@ -131,7 +146,6 @@ export const CourseCard = ({
             </div>
           )}
 
-          {/* Spacer to push the bottom row to the very bottom */}
           <div className="grow" />
 
           {/* Bottom row */}
@@ -142,7 +156,7 @@ export const CourseCard = ({
                 className="text-[#0a348f] dark:text-blue-400"
               />
               <span className="text-[11px] font-bold">
-                {lectures?.length || 0} Lessons
+                {lectureCount} {lectureCount === 1 ? "Lesson" : "Lessons"}
               </span>
             </div>
 
@@ -160,7 +174,7 @@ export const CourseCard = ({
             `}
             >
               {isEnrolled ? (
-                <>Enroll</>
+                <>Continue</>
               ) : isFree ? (
                 <>Enroll Free</>
               ) : (

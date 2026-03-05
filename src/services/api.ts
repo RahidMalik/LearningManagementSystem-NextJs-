@@ -23,12 +23,15 @@ export interface ICourse {
     instructor: string;
     instructorImage: string;
     price: number;
-    image: string;
+    image?: string;
+    thumbnail?: string;
     progress?: number;
     description?: string;
-    thumbnail?: string;
     videoUrl?: string;
-    lectures?: any[];
+    lectures?: {
+        title: string;
+        videoUrl: string
+    }[];
     category?: string;
     badge?: string;
     level?: string;

@@ -4,16 +4,7 @@ import { useState, useEffect } from "react";
 import { CourseCard } from "@/components/shared/CourseCard";
 import Link from "next/link";
 import { Loader2, AlertCircle, BookOpen, ArrowRight } from "lucide-react";
-import { api } from "@/services/api";
-
-export interface ICourse {
-  id: string;
-  title: string;
-  instructor: string;
-  image: string;
-  price?: number;
-  category?: string;
-}
+import { api, ICourse } from "@/services/api";
 
 export default function StudentDashboard() {
   const [courses, setCourses] = useState<ICourse[]>([]);
@@ -31,15 +22,19 @@ export default function StudentDashboard() {
 
         if (coursesArray.length > 0) {
           const formattedData = coursesArray.map((c: any) => ({
-            id: c._id || c.id,
+            _id: c._id || c.id,
             title: c.title,
-            instructor: c.instructor || "Rahid",
+            instructor: c.instructor || c.instructorName || "Instructor",
+            instructorImage: c.instructorImage || null,
             image:
               c.thumbnail ||
               c.image ||
               "https://placehold.co/600x400?text=Course",
+            thumbnail: c.thumbnail || c.image || "",
             price: c.price,
             category: c.category,
+            rating: c.rating || "0",
+            lectures: Array.isArray(c.lectures) ? c.lectures : [],
           }));
           setCourses(formattedData);
         }
@@ -67,7 +62,6 @@ export default function StudentDashboard() {
     );
   }
 
-  // Handle errors gracefully using modern Error UI
   if (error) {
     return (
       <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4 text-center px-4 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
@@ -123,10 +117,9 @@ export default function StudentDashboard() {
       {courses.length > 0 ? (
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {courses.slice(0, 8).map((course) => (
-            // Wrapping link internally with dark mode focus ring and transition
             <Link
-              href={`/course/${course.id}`}
-              key={course.id}
+              href={`/course/${course._id}`}
+              key={course._id}
               className="block transition-all hover:scale-[1.02] hover:z-10 focus-within:ring-4 focus-within:ring-blue-500/50 rounded-[32px] active:scale-95"
             >
               <CourseCard {...course} />
