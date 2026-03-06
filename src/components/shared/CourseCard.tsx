@@ -4,6 +4,7 @@ import { Star, PlayCircle, Tag, Lock, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ICourse } from "@/services/api";
+import { useState } from "react";
 
 export const CourseCard = ({
   _id,
@@ -22,12 +23,16 @@ export const CourseCard = ({
   const isFree = price === 10 || price === 0;
   const isEnrolled = typeof progress === "number";
 
-  const displayImage = thumbnail || image || "/placeholder-course.jpg";
+  // 🚀 FIX: Image Fallback State (To prevent infinite rendering loop)
+  const [imgError, setImgError] = useState(false);
+  const [instructorImgError, setInstructorImgError] = useState(false);
+
+  const displayImage = imgError
+    ? "/placeholder-course.jpg" // Ensure this file exists in your 'public' folder!
+    : thumbnail || image || "/placeholder-course.jpg";
 
   const displayRating = rating ? Number(rating).toFixed(1) : "4.9";
-
   const lectureCount = Array.isArray(lectures) ? lectures.length : 0;
-
   const instructorName = instructor || "Instructor";
 
   return (
@@ -41,7 +46,7 @@ export const CourseCard = ({
       <div className="relative bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[24px] overflow-hidden transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_24px_48px_-8px_rgba(10,52,143,0.18)] dark:group-hover:shadow-[0_24px_48px_-8px_rgba(59,130,246,0.15)] flex flex-col h-full">
         {/* ── IMAGE ── */}
         <div
-          className="relative overflow-hidden shrink-0"
+          className="relative overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-800"
           style={{ aspectRatio: "16/10" }}
         >
           <Image
@@ -50,8 +55,9 @@ export const CourseCard = ({
             fill
             sizes="(max-width: 768px) 100vw, 400px"
             className="object-cover transition-all duration-700 group-hover:scale-110"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = "/placeholder-course.jpg";
+            onError={() => {
+              // 🚀 FIX: Ab yahan loop nahi banega
+              setImgError(true);
             }}
           />
 
@@ -62,7 +68,7 @@ export const CourseCard = ({
           <div className="absolute top-3 left-3">
             <span className="inline-flex items-center gap-1 bg-white/15 dark:bg-white/10 backdrop-blur-md border border-white/20 text-white px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
               <Tag size={9} className="fill-white" />
-              {category}
+              {category || "Course"}
             </span>
           </div>
 
@@ -92,29 +98,21 @@ export const CourseCard = ({
         <div className="p-5 flex flex-col grow">
           {/* Instructor */}
           <div className="flex items-center gap-2 mb-3">
-            {instructorImage ? (
+            {instructorImage && !instructorImgError ? (
               <img
                 src={instructorImage}
                 alt={instructorName}
                 className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
-                onError={(e) => {
-                  // ✅ Image load fail hone pe fallback icon
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                  (e.currentTarget
-                    .nextElementSibling as HTMLElement)!.style.display = "flex";
-                }}
+                onError={() => setInstructorImgError(true)} // 🚀 FIX
               />
-            ) : null}
-            {/* Fallback icon — shows if no image or image fails */}
-            <div
-              className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 items-center justify-center shrink-0"
-              style={{ display: instructorImage ? "none" : "flex" }}
-            >
-              <GraduationCap
-                size={12}
-                className="text-[#0a348f] dark:text-blue-400"
-              />
-            </div>
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                <GraduationCap
+                  size={12}
+                  className="text-[#0a348f] dark:text-blue-400"
+                />
+              </div>
+            )}
 
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate transition-colors duration-300">
               {instructorName}

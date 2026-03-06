@@ -92,14 +92,70 @@ export async function WalletVerification(req: Request) {
         const receiptUrl = uploadResponse.secure_url;
 
         const payment = await Payment.create({
-            user: userId, course: courseId, amount,
-            paymentMethod: method, senderPhone: phone,
-            receiptUrl, status: "pending",
+            user: userId,
+            course: courseId,
+            amount,
+            paymentMethod: method,
+            senderPhone: phone,
+            receiptUrl,
+            status: "pending",
         });
 
         return NextResponse.json({ success: true, message: "Slip uploaded & submitted successfully!", data: payment });
 
     } catch (error: any) {
         return NextResponse.json({ success: false, message: error.message || "Internal Server Error" }, { status: 500 });
+    }
+}
+
+export const getAdminRevenue = async (req: Request) => {
+    try {
+        await dbConnect();
+
+        const authResult = await validateRequest(req);
+        if (!authResult.success || !authResult.user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        // ── 1. EasyPaisa / JazzCash — Payment collection (approved only) ──
+        const walletPayments = await Payment.find({ status: "approved" });
+        const walletRevenue = walletPayments.reduce((sum: number, p: any) => {
+            return sum + (Number(p.amount) || 0);
+        }, 0);
+
+        // ── 2. Stripe — Enrollment collection ──
+
+        const walletCourseUserPairs = walletPayments.map((p: any) =>
+            `${p.user?.toString()}_${p.course?.toString()}`
+        );
+
+        const allEnrollments = await Enrollment.find({ status: "active" })
+            .populate("course", "price");
+
+
+        const stripeEnrollments = allEnrollments.filter((e: any) => {
+            const pair = `${e.user?.toString()}_${e.course?.toString()}`;
+            return !walletCourseUserPairs.includes(pair);
+        });
+
+        const stripeRevenue = stripeEnrollments.reduce((sum: number, e: any) => {
+            return sum + (Number(e.course?.price) || 0);
+        }, 0);
+
+        const totalRevenue = walletRevenue + stripeRevenue;
+
+        return NextResponse.json({
+            success: true,
+            totalRevenue,
+            breakdown: {
+                wallet: walletRevenue,       // EasyPaisa + JazzCash
+                stripe: stripeRevenue,       // Card payments
+                walletCount: walletPayments.length,
+                stripeCount: stripeEnrollments.length,
+            }
+        });
+
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

@@ -305,7 +305,7 @@ export default function AdminCourses() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search courses..."
-                  className="pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 rounded-xl w-48 sm:w-56 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 focus:outline-none focus:border-[#0a348f] transition-all"
+                  className="pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-zinc-700  rounded-xl w-48 sm:w-56 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 focus:outline-none focus:border-[#0a348f] transition-all"
                 />
               </div>
               <motion.button

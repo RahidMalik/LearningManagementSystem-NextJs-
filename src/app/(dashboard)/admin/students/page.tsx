@@ -112,12 +112,12 @@ export default function AdminStudents() {
   const revokedCount = students.filter((s) => s.status === "revoked").length;
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-zinc-950">
+    <div className="flex min-h-screen">
       <AdminSidebar />
 
       <main className="flex-1 overflow-auto">
         {/* ── Sticky Header ── */}
-        <div className="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-slate-100 dark:border-zinc-800 px-4 sm:px-8 py-4">
+        <div className="sticky top-0 z-30 backdrop-blur-md border-b border-slate-100 dark:border-zinc-800 px-4 sm:px-8 py-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <div className="flex items-center gap-2">
@@ -143,7 +143,7 @@ export default function AdminStudents() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search students..."
-                className="pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl w-48 sm:w-56 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 focus:outline-none focus:border-[#0a348f] dark:focus:border-blue-500 transition-all"
+                className="pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-zinc-700 rounded-xl w-48 sm:w-56 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 focus:outline-none focus:border-[#0a348f] dark:focus:border-blue-500 transition-all"
               />
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function AdminStudents() {
             ].map((s, i) => (
               <div
                 key={i}
-                className="bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 rounded-2xl px-4 py-3 sm:px-5 sm:py-4 flex items-center gap-3 shadow-sm"
+                className="border border-slate-100 dark:border-zinc-800 rounded-2xl px-4 py-3 sm:px-5 sm:py-4 flex items-center gap-3 shadow-sm"
               >
                 <div className={`p-2 sm:p-2.5 rounded-xl ${s.bg} shrink-0`}>
                   <s.icon size={15} className={s.color} />
@@ -203,7 +203,7 @@ export default function AdminStudents() {
                 className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ${
                   filter === f
                     ? "bg-[#0a348f] dark:bg-blue-500 text-white border-transparent shadow-md"
-                    : "bg-white dark:bg-zinc-900 text-slate-400 dark:text-zinc-500 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f] dark:hover:border-blue-500"
+                    : "text-slate-400 dark:text-zinc-500 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f] dark:hover:border-blue-500"
                 }`}
               >
                 {f}
@@ -212,9 +212,9 @@ export default function AdminStudents() {
           </div>
 
           {/* ── Students list ── */}
-          <div className="bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
+          <div className="border border-slate-100 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
             {/* Table header — desktop only */}
-            <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-6 py-3 bg-slate-50 dark:bg-zinc-800/50 border-b border-slate-100 dark:border-zinc-800">
+            <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-6 py-3 border-b border-slate-100 dark:border-zinc-800">
               {["Student", "Enrolled", "Courses", ""].map((h, i) => (
                 <p
                   key={i}

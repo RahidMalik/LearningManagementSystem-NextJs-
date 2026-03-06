@@ -1,45 +1,47 @@
 import { NextResponse } from "next/server";
-import dbconnect from "@/configs/mongodb";
-import { User } from "@/models/User";
 import validateRequest from "@/middleware/authMiddleware";
 
 export const adminGuard = async (req: Request) => {
-    try {
-        await dbconnect();
+  try {
+    // 1. validateRequest se auth check
+    const auth = await validateRequest(req);
 
-        const userId = await validateRequest(req);
-
-        if (!userId) {
-            return {
-                success: false,
-                response: NextResponse.json(
-                    { success: false, error: "Unauthorized! Please login." },
-                    { status: 401 }
-                )
-            };
-        }
-
-        const user = await User.findById(userId).select("role");
-
-        if (!user || user.role !== "admin") {
-            return {
-                success: false,
-                response: NextResponse.json(
-                    { success: false, error: "Forbidden! You are not an admin." },
-                    { status: 403 }
-                )
-            };
-        }
-
-        return { success: true, userId: user._id };
-
-    } catch (error: any) {
-        return {
-            success: false,
-            response: NextResponse.json(
-                { success: false, error: "Admin Check Error: " + error.message },
-                { status: 500 }
-            )
-        };
+    // 2. Auth fail check
+    if (!auth.success || !auth.user) {
+      return {
+        success: false,
+        response: NextResponse.json(
+          { success: false, error: "Unauthorized! Please login." },
+          { status: 401 }
+        )
+      };
     }
+
+    // 3. Role check — token mein role already hai
+    if (auth.user.role !== "admin") {
+      return {
+        success: false,
+        response: NextResponse.json(
+          { success: false, error: "Forbidden! You are not an admin." },
+          { status: 403 }
+        )
+      };
+    }
+
+    // 4. Success
+    return {
+      success: true,
+      userId: auth.user.userId,
+      user: auth.user,
+    };
+
+  } catch (error: any) {
+    return {
+      success: false,
+      response: NextResponse.json(
+        { success: false, error: "Admin Check Error: " + error.message },
+        { status: 500 }
+      )
+    };
+  }
 };

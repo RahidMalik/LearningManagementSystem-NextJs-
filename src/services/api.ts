@@ -233,6 +233,9 @@ export const api = {
             method: "DELETE",
         })
     },
+    getAllStudents: async (page = 1, limit = 10): Promise<ApiResponse<any>> => {
+        return await apiClient.request(`/admin/students?page=${page}&limit=${limit}`)
+    },
     // ==========================================
     //           Payment Method
     // ==========================================
@@ -300,6 +303,11 @@ export const api = {
         return await apiClient.request("/payments/wallet-verify", {
             method: "POST",
             data: data,
+        });
+    },
+    getAdminRevenue: async (): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/admin/revenue", {
+            method: "GET",
         });
     },
     // ==========================================

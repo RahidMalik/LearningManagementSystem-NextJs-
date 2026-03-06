@@ -1,30 +1,28 @@
 import { verifyToken } from "@/lib/jwt";
 
-// Add this interface definition
 interface TokenPayload {
     userId: string;
     email: string;
+    role: string;
     iat?: number;
     exp?: number;
 }
 
-// Update your validateRequest function to use proper typing
- const validateRequest = async (req: Request) => {
+const validateRequest = async (req: Request) => {
     try {
-        const authheader = req.headers.get("authorization");
+        const authHeader = req.headers.get("authorization");
 
-        if (!authheader || !authheader.startsWith("Bearer")) {
-            return { error: "Access Denied. No token provider", status: 400 };
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return { error: "Access Denied. No token provided", status: 401 };
         }
 
-        const token = authheader.split(" ")[1];
+        const token = authHeader.split(" ")[1];
         const decoded = verifyToken(token) as TokenPayload | null;
 
         if (!decoded) {
             return { error: "Invalid or expired token.", status: 401 };
         }
 
-        // TypeScript now knows decoded has userId and email
         return { success: true, user: decoded, status: 200 };
 
     } catch (error) {

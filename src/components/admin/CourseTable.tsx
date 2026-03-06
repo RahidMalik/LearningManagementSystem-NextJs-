@@ -89,7 +89,7 @@ export default function CourseTable() {
           <h3 className="font-black text-sm text-slate-800 dark:text-white uppercase tracking-tight">
             Recent Courses
           </h3>
-          <span className="bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 text-[10px] font-black px-2 py-0.5 rounded-full">
+          <span className="text-slate-500 dark:text-zinc-400 text-[10px] font-black px-2 py-0.5 rounded-full">
             {courses.length}
           </span>
         </div>
@@ -105,7 +105,7 @@ export default function CourseTable() {
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="bg-slate-50/80 dark:bg-zinc-800/50 border-b border-slate-100 dark:border-zinc-800">
+            <tr className="border-b border-slate-100 dark:border-zinc-800">
               <th className="px-6 py-3 text-left text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">
                 Course
               </th>
@@ -134,7 +134,7 @@ export default function CourseTable() {
               <th className="px-6 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50 dark:divide-zinc-800/80">
+          <tbody className="divide-y ">
             {sorted.map((course) => (
               <tr
                 key={course.id}
@@ -224,7 +224,7 @@ export default function CourseTable() {
                   </button>
 
                   {openMenu === course.id && (
-                    <div className="absolute right-6 top-10 z-20 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden w-36">
+                    <div className="absolute right-6 top-10 z-20 border border-slate-100 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden w-36">
                       <button
                         onClick={() => {
                           router.push(`/admin/courses/${course.id}`);
