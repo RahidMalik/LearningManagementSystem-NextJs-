@@ -51,30 +51,39 @@ export default function AdminStats() {
 
   useEffect(() => {
     const fetchAll = async () => {
+      // ── 1. Courses ──
       try {
-        // ── 1. Courses count ──
         const cRes: any = await api.getAllCourses();
         const allCourses = cRes?.courses || cRes?.data?.courses || [];
         setCourses(allCourses.length);
+      } catch {
+        setCourses(0);
+      }
 
-        // ── 2. Students count ──
-        const sRes: any = await api.getAllStudents();
-        const totalStudents =
-          sRes?.data?.totalStudents ?? sRes?.totalStudents ?? 0;
-        setStudents(totalStudents);
+      // ── 2. Students ──
+      try {
+        const sRes: any = await api.getAllStudents(1, 10);
+        const total =
+          sRes?.data?.totalStudents ??
+          sRes?.totalStudents ??
+          sRes?.data?.data?.length ??
+          0;
+        setStudents(total);
+      } catch {
+        setStudents(0);
+      }
 
-        // ── 3. Revenue — approved payments only ──
+      // ── 3. Revenue ──
+      try {
         const rRes: any = await api.getAdminRevenue();
         const totalRevenue =
           rRes?.data?.totalRevenue ?? rRes?.totalRevenue ?? 0;
         setRevenue(totalRevenue);
       } catch {
-        setCourses(0);
-        setStudents(0);
         setRevenue(0);
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     };
 
     fetchAll();

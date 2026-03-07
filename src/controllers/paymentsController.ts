@@ -159,3 +159,53 @@ export const getAdminRevenue = async (req: Request) => {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
+export const getCoursesState = async (req: Request) => {
+    try {
+        await dbConnect();
+        const authResult = await validateRequest(req);
+        if (!authResult.success || !authResult.user) {
+            return NextResponse.json(
+                { error: "Unauthorized" }, { status: 401 }
+            )
+        }
+        // ── 1. we count every enroll for course ──
+        const enrollments = await Enrollment.find({ status: "active" }).populate("course", "price title");
+        // ── 2. Approved wallet payments ──
+        const walletPayments = await Payment.find({ status: "approved" }).lean();
+        // wallet user+course pairs
+        const walletPairs = walletPayments.map((p: any) =>
+            `${p.user?.toString()}_${p.course?.toString()}`
+        );
+        // ── 3. Update courses per student ──
+        const stateMap: Record<string, {
+            students: number, revenue: number
+        }> = {};
+
+        enrollments.forEach((e: any) => {
+            const courseId = e.course?._id?.toString();
+
+            if (!courseId) return;
+
+            if (!stateMap[courseId]) stateMap[courseId] = { students: 0, revenue: 0 };
+
+            stateMap[courseId].students += 1;
+
+            // Revenue: if in wallet pair then skip (Spread count)
+            const pair = `${e.user?.toString()}_${courseId}`;
+            if (!walletPairs.includes(pair)) {
+                stateMap[courseId].revenue += Number(e.course?.price) || 0;
+            }
+        });
+        // Wallet revenue per course
+        walletPayments.forEach((p: any) => {
+            const courseId = p.course?.toString();
+            if (!courseId) return;
+            if (!stateMap[courseId]) stateMap[courseId] = { students: 0, revenue: 0 };
+            stateMap[courseId].revenue += Number(p.amount) || 0;
+        });
+        return NextResponse.json({ success: true, stats: stateMap });
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+};

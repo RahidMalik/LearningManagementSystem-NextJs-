@@ -12,12 +12,15 @@ import {
   X,
   ChevronRight,
   RotateCcw,
+  Lock,
 } from "lucide-react";
 
 interface Props {
   videoUrl: string;
-  lectureId?: string; // localStorage key ke liye
-  onEnded?: () => void; // auto-play next lecture
+  lectureId?: string;
+  onEnded?: () => void;
+  onPlay?: () => void;
+  allowSeek?: boolean;
 }
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -25,7 +28,7 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const SHORTCUTS = [
   { key: "Space", label: "Play / Pause" },
   { key: "←", label: "Rewind 10s" },
-  { key: "→", label: "Forward 10s" },
+  { key: "→", label: "Forward 10s (blocked if restricted)" },
   { key: "↑", label: "Volume Up" },
   { key: "↓", label: "Volume Down" },
   { key: "F", label: "Fullscreen" },
@@ -34,10 +37,38 @@ const SHORTCUTS = [
   { key: "R", label: "Restart from beginning" },
 ];
 
-export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
+export const CybexPlayer = ({
+  videoUrl,
+  lectureId,
+  onEnded,
+  onPlay,
+  allowSeek = true,
+}: Props) => {
   const playerRef = useRef<APITypes>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const saveInterval = useRef<NodeJS.Timeout | null>(null);
+  const maxTimeRef = useRef<number>(0);
+
+  // 🚀 FIX: Prevent multiple unlock triggers
+  const endedFiredRef = useRef<boolean>(false);
+
+  // ✅ Always-fresh refs — no stale closures
+  const onEndedRef = useRef(onEnded);
+  const onPlayRef = useRef(onPlay);
+  const allowSeekRef = useRef(allowSeek);
+
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+  }, [onEnded]);
+
+  useEffect(() => {
+    onPlayRef.current = onPlay;
+  }, [onPlay]);
+
+  useEffect(() => {
+    allowSeekRef.current = allowSeek;
+  }, [allowSeek]);
 
   const [speed, setSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -46,15 +77,140 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
   const [isPip, setIsPip] = useState(false);
 
   const storageKey = lectureId ? `plyr-pos-${lectureId}` : null;
-
-  // ─────────────────────────────────────────────
-  // Helpers
-  // ─────────────────────────────────────────────
   const getPlayer = () => playerRef.current?.plyr as any;
+
+  const showSeekBlockFlash = () => {
+    const flash = document.getElementById("seek-block-flash");
+    if (!flash) return;
+    flash.classList.remove("opacity-0");
+    flash.classList.add("opacity-100");
+    setTimeout(() => {
+      flash.classList.remove("opacity-100");
+      flash.classList.add("opacity-0");
+    }, 800);
+  };
+
+  // ✅ Attach events DIRECTLY to <video> element
+  useEffect(() => {
+    let attempts = 0;
+    const tryAttach = setInterval(() => {
+      const video = containerRef.current?.querySelector(
+        "video",
+      ) as HTMLVideoElement | null;
+      attempts++;
+      if (!video || attempts > 50) {
+        clearInterval(tryAttach);
+        return;
+      }
+      clearInterval(tryAttach);
+
+      // Restore volume
+      const savedVol = parseFloat(localStorage.getItem("plyr-volume") || "1");
+      if (!isNaN(savedVol)) video.volume = savedVol;
+
+      // Restore position
+      if (storageKey && allowSeekRef.current) {
+        const saved = parseFloat(localStorage.getItem(storageKey) || "0");
+        if (saved > 10) setResumePrompt(saved);
+      }
+
+      // Restore speed
+      if (lectureId) {
+        const s = parseFloat(
+          localStorage.getItem(`plyr-speed-${lectureId}`) || "1",
+        );
+        if (!isNaN(s)) {
+          setSpeed(s);
+          video.playbackRate = s;
+        }
+      }
+
+      const triggerUnlock = () => {
+        if (!endedFiredRef.current) {
+          endedFiredRef.current = true;
+          if (storageKey) localStorage.removeItem(storageKey);
+          onEndedRef.current?.();
+        }
+      };
+
+      // ── Track max watched time & High-Speed UNLOCK FIX ──
+      const onTimeUpdate = () => {
+        if (video.currentTime > maxTimeRef.current) {
+          maxTimeRef.current = video.currentTime;
+        }
+
+        // Save position
+        if (storageKey && video.currentTime > 5) {
+          localStorage.setItem(storageKey, String(video.currentTime));
+        }
+        localStorage.setItem("plyr-volume", String(video.volume));
+
+        // 🚀 FIX: High speed (2x) mein frames miss ho jate hain,
+        // isliye hum percentage (95%) check karte hain chahe speed jitni bhi ho
+        if (video.duration > 0) {
+          const percentComplete = video.currentTime / video.duration;
+          if (
+            percentComplete >= 0.95 ||
+            video.duration - video.currentTime <= 1
+          ) {
+            triggerUnlock();
+          }
+        }
+      };
+
+      // ── Block seeking ──
+      const onSeeking = () => {
+        if (allowSeekRef.current) return;
+        if (video.currentTime > maxTimeRef.current + 0.5) {
+          video.currentTime = maxTimeRef.current;
+          showSeekBlockFlash();
+        }
+      };
+
+      // ── Play ──
+      const onPlayEvt = () => {
+        onPlayRef.current?.();
+      };
+
+      // ── Ended (Fail-safe for 2x speed) ──
+      const onEndedEvt = () => {
+        triggerUnlock();
+      };
+
+      video.addEventListener("timeupdate", onTimeUpdate);
+      video.addEventListener("seeking", onSeeking);
+      video.addEventListener("play", onPlayEvt);
+      video.addEventListener("ended", onEndedEvt);
+
+      // Cleanup
+      return () => {
+        video.removeEventListener("timeupdate", onTimeUpdate);
+        video.removeEventListener("seeking", onSeeking);
+        video.removeEventListener("play", onPlayEvt);
+        video.removeEventListener("ended", onEndedEvt);
+        if (saveInterval.current) clearInterval(saveInterval.current);
+      };
+    }, 100);
+
+    return () => clearInterval(tryAttach);
+  }, [videoUrl, lectureId, storageKey]);
+
+  // Reset on video change
+  useEffect(() => {
+    maxTimeRef.current = 0;
+    endedFiredRef.current = false;
+    setResumePrompt(null);
+  }, [videoUrl]);
 
   const handleManualSkip = useCallback((seconds: number) => {
     const p = getPlayer();
     if (!p) return;
+    if (!allowSeekRef.current && seconds > 0) {
+      if (p.currentTime + seconds > maxTimeRef.current + 0.5) {
+        showSeekBlockFlash();
+        return;
+      }
+    }
     p.currentTime = Math.max(0, p.currentTime + seconds);
     const dir = seconds > 0 ? "forward" : "rewind";
     const icon = document.getElementById(`${dir}-icon-plyr`);
@@ -110,8 +266,7 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
         await document.exitPictureInPicture();
         setIsPip(false);
       } else {
-        const video = p.media as HTMLVideoElement;
-        await video?.requestPictureInPicture();
+        await (p.media as HTMLVideoElement)?.requestPictureInPicture();
         setIsPip(true);
       }
     } catch (e) {
@@ -119,62 +274,11 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
     }
   }, []);
 
-  // ─────────────────────────────────────────────
-  // On Mount — restore saved position & speed
-  // ─────────────────────────────────────────────
-  useEffect(() => {
-    const p = getPlayer();
-    if (!p) return;
-
-    // Restore speed
-    if (lectureId) {
-      const savedSpeed = parseFloat(
-        localStorage.getItem(`plyr-speed-${lectureId}`) || "1",
-      );
-      if (!isNaN(savedSpeed)) {
-        setSpeed(savedSpeed);
-        p.speed = savedSpeed;
-      }
-    }
-
-    // Restore volume
-    const savedVol = parseFloat(localStorage.getItem("plyr-volume") || "1");
-    if (!isNaN(savedVol)) p.volume = savedVol;
-
-    // Restore position — show resume prompt
-    if (storageKey) {
-      const saved = parseFloat(localStorage.getItem(storageKey) || "0");
-      if (saved > 10) setResumePrompt(saved);
-    }
-
-    // Save position every 3s
-    saveInterval.current = setInterval(() => {
-      const cp = getPlayer();
-      if (!cp || !storageKey) return;
-      const t = cp.currentTime;
-      if (t > 5) localStorage.setItem(storageKey, String(t));
-      localStorage.setItem("plyr-volume", String(cp.volume ?? 1));
-    }, 3000);
-
-    // Auto-play next on ended
-    p.on?.("ended", () => {
-      if (storageKey) localStorage.removeItem(storageKey);
-      onEnded?.();
-    });
-
-    return () => {
-      if (saveInterval.current) clearInterval(saveInterval.current);
-    };
-  }, [videoUrl]);
-
-  // ─────────────────────────────────────────────
-  // Keyboard shortcuts
-  // ─────────────────────────────────────────────
+  // ── Keyboard ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = document.activeElement?.tagName || "";
       if (["INPUT", "TEXTAREA"].includes(tag)) return;
-
       switch (e.code) {
         case "ArrowLeft":
           e.preventDefault();
@@ -218,7 +322,10 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
           e.preventDefault();
           {
             const p = getPlayer();
-            if (p) p.currentTime = 0;
+            if (p) {
+              p.currentTime = 0;
+              p.play();
+            }
           }
           break;
       }
@@ -227,9 +334,6 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
     return () => window.removeEventListener("keydown", handler);
   }, [handleManualSkip, togglePip, cycleSpeed]);
 
-  // ─────────────────────────────────────────────
-  // Resume from saved position
-  // ─────────────────────────────────────────────
   const doResume = () => {
     const p = getPlayer();
     if (p && resumePrompt) p.currentTime = resumePrompt;
@@ -238,17 +342,25 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
   };
 
   const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
+    const m = Math.floor(s / 60),
+      sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  // ─────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────
+  const progressBlockCSS = `
+    .plyr__progress { pointer-events: none !important; opacity: 0.45 !important; cursor: not-allowed !important; }
+    .plyr__progress input[type=range] { pointer-events: none !important; cursor: not-allowed !important; }
+    .plyr__tooltip { display: none !important; }
+  `;
+
   return (
-    <div className="relative w-full h-full bg-black rounded-xl overflow-hidden group/player">
-      {/* ── Plyr core ── */}
+    <div
+      ref={containerRef}
+      className="relative w-full h-full bg-black rounded-xl overflow-hidden group/player"
+    >
+      {!allowSeek && <style>{progressBlockCSS}</style>}
+
+      {/* Plyr */}
       <div className="absolute inset-0 w-full h-full [&_.plyr]:h-full [&_.plyr__video-wrapper]:h-full [&_.plyr__video-wrapper_video]:object-contain! [&_.plyr__video-wrapper_video]:h-full!">
         <Plyr
           ref={playerRef}
@@ -265,19 +377,42 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
                 "current-time",
                 "mute",
                 "volume",
-                "settings",
+                "settings", // Keep settings for quality/captions if any
                 "fullscreen",
               ],
               keyboard: { focused: true, global: false },
-              tooltips: { controls: true, seek: true },
+              tooltips: { controls: true, seek: allowSeek },
               clickToPlay: false,
-              speed: { selected: speed, options: SPEEDS },
+              // 🚀 FIX: Removed speed from settings to avoid duplicate options
+              settings: ["captions", "quality", "loop"],
             } as any
           }
         />
       </div>
 
-      {/* ── Smart tap layer ── */}
+      {!allowSeek && (
+        <div className="absolute top-0 left-0 right-0 z-30 flex items-center gap-2 bg-amber-500/90 backdrop-blur px-4 py-1.5 pointer-events-none">
+          <Lock size={11} className="text-black shrink-0" />
+          <p className="text-black text-[10px] font-black uppercase tracking-wider">
+            Watch the full video — seeking is disabled • Complete it to unlock
+            the next one
+          </p>
+        </div>
+      )}
+
+      <div
+        id="seek-block-flash"
+        className="absolute inset-0 z-40 pointer-events-none opacity-0 transition-opacity duration-300 flex items-center justify-center"
+      >
+        <div className="bg-black/80 backdrop-blur text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-2xl">
+          <Lock size={18} className="text-amber-400" />
+          <span className="text-sm font-black">
+            You cannot skip without watching the full video
+          </span>
+        </div>
+      </div>
+
+      {/* Tap layer */}
       <div className="absolute top-0 left-0 right-0 bottom-14 z-10 flex cursor-pointer">
         {(["left", "center", "right"] as const).map((zone) => (
           <div
@@ -291,7 +426,7 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
         ))}
       </div>
 
-      {/* ── Skip icons ── */}
+      {/* Skip icons */}
       {[
         {
           id: "rewind-icon-plyr",
@@ -320,16 +455,14 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
         </div>
       ))}
 
-      {/* ── Custom control bar (top-right) ── */}
+      {/* Custom controls */}
       <div className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300">
-        {/* Speed button */}
         <div className="relative">
           <button
             onClick={() => setShowSpeedMenu((v) => !v)}
             className="flex items-center gap-1.5 bg-black/70 backdrop-blur text-white text-xs font-black px-3 py-1.5 rounded-full hover:bg-black/90 transition-all border border-white/10"
           >
-            <Gauge size={13} />
-            {speed}x
+            <Gauge size={13} /> {speed}x
           </button>
           {showSpeedMenu && (
             <div className="absolute top-9 right-0 bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-40 w-28">
@@ -337,11 +470,7 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
                 <button
                   key={s}
                   onClick={() => applySpeed(s)}
-                  className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${
-                    speed === s
-                      ? "bg-white text-black"
-                      : "text-zinc-300 hover:bg-zinc-800"
-                  }`}
+                  className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${speed === s ? "bg-white text-black" : "text-zinc-300 hover:bg-zinc-800"}`}
                 >
                   {s === 1 ? "Normal" : `${s}x`}
                 </button>
@@ -349,21 +478,13 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
             </div>
           )}
         </div>
-
-        {/* PiP button */}
         <button
           onClick={togglePip}
-          title="Picture-in-Picture (P)"
-          className={`p-2 rounded-full backdrop-blur border border-white/10 transition-all ${
-            isPip
-              ? "bg-blue-500 text-white"
-              : "bg-black/70 text-white hover:bg-black/90"
-          }`}
+          title="PiP (P)"
+          className={`p-2 rounded-full backdrop-blur border border-white/10 transition-all ${isPip ? "bg-blue-500 text-white" : "bg-black/70 text-white hover:bg-black/90"}`}
         >
           <PictureInPicture2 size={14} />
         </button>
-
-        {/* Restart button */}
         <button
           onClick={() => {
             const p = getPlayer();
@@ -377,18 +498,16 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
         >
           <RotateCcw size={14} />
         </button>
-
-        {/* Shortcuts button */}
         <button
           onClick={() => setShowShortcuts(true)}
-          title="Keyboard shortcuts"
+          title="Shortcuts"
           className="p-2 rounded-full bg-black/70 backdrop-blur text-white hover:bg-black/90 border border-white/10 transition-all"
         >
           <Keyboard size={14} />
         </button>
       </div>
 
-      {/* ── Resume prompt ── */}
+      {/* Resume prompt */}
       {resumePrompt && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-300">
           <div className="bg-zinc-900/95 backdrop-blur border border-white/10 rounded-2xl px-5 py-3 flex items-center gap-4 shadow-2xl">
@@ -416,7 +535,7 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
         </div>
       )}
 
-      {/* ── Keyboard shortcuts overlay ── */}
+      {/* Shortcuts */}
       {showShortcuts && (
         <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-200">
           <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-72 shadow-2xl">
@@ -451,7 +570,7 @@ export const CybexPlayer = ({ videoUrl, lectureId, onEnded }: Props) => {
         </div>
       )}
 
-      {/* ── Speed indicator flash (when keyboard cycles speed) ── */}
+      {/* Speed flash */}
       <div
         id="speed-flash"
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30 opacity-0 transition-opacity"

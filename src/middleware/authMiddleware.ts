@@ -1,4 +1,6 @@
 import { verifyToken } from "@/lib/jwt";
+import { User } from "@/models/User";
+import dbconnect from "@/configs/mongodb";
 
 interface TokenPayload {
     userId: string;
@@ -21,6 +23,17 @@ const validateRequest = async (req: Request) => {
 
         if (!decoded) {
             return { error: "Invalid or expired token.", status: 401 };
+        }
+
+        await dbconnect();
+        const user = await User.findById(decoded.userId).select("status role");
+
+        if (!user) {
+            return { error: "User not found.", status: 404 };
+        }
+
+        if (user.status === "revoked") {
+            return { error: "Your access has been revoked. Contact admin.", status: 403 };
         }
 
         return { success: true, user: decoded, status: 200 };

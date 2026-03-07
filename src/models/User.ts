@@ -22,6 +22,12 @@ const UserSchema = new Schema({
         enum: ["admin", "student"],
         default: "student"
     },
+    status: {
+        type: String,
+        enum: ["active", "revoked"],
+        default: "active"
+    },
+
     createdAt: {
         type: Date,
         default: Date.now

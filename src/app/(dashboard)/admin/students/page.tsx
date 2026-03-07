@@ -1,6 +1,6 @@
 "use client";
 import AdminSidebar from "@/components/admin/AdminSidebar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users,
@@ -10,69 +10,12 @@ import {
   MoreVertical,
   BookOpen,
   Calendar,
-  TrendingUp,
   UserCheck,
   UserX,
-  ChevronDown,
+  Loader2,
 } from "lucide-react";
-
-// Mock data — replace with api call
-const MOCK_STUDENTS = [
-  {
-    id: 1,
-    name: "Ali Hassan",
-    email: "ali@example.com",
-    date: "12 Jan, 2026",
-    courses: 4,
-    status: "active",
-    avatar: "AH",
-  },
-  {
-    id: 2,
-    name: "Sara Khan",
-    email: "sara@example.com",
-    date: "18 Jan, 2026",
-    courses: 2,
-    status: "active",
-    avatar: "SK",
-  },
-  {
-    id: 3,
-    name: "Usman Tariq",
-    email: "usman@example.com",
-    date: "02 Feb, 2026",
-    courses: 6,
-    status: "revoked",
-    avatar: "UT",
-  },
-  {
-    id: 4,
-    name: "Ayesha Malik",
-    email: "ayesha@example.com",
-    date: "09 Feb, 2026",
-    courses: 1,
-    status: "active",
-    avatar: "AM",
-  },
-  {
-    id: 5,
-    name: "Hamza Qureshi",
-    email: "hamza@example.com",
-    date: "14 Feb, 2026",
-    courses: 3,
-    status: "active",
-    avatar: "HQ",
-  },
-  {
-    id: 6,
-    name: "Fatima Siddiqui",
-    email: "fatima@example.com",
-    date: "20 Feb, 2026",
-    courses: 5,
-    status: "revoked",
-    avatar: "FS",
-  },
-];
+import { api } from "@/services/api";
+import toast from "react-hot-toast";
 
 const AVATAR_COLORS = [
   "from-blue-500 to-indigo-600",
@@ -83,32 +26,78 @@ const AVATAR_COLORS = [
   "from-cyan-500 to-blue-600",
 ];
 
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-PK", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 export default function AdminStudents() {
-  const [students, setStudents] = useState(MOCK_STUDENTS);
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "revoked">("all");
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
-  const toggleAccess = (id: number) => {
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, status: s.status === "active" ? "revoked" : "active" }
-          : s,
-      ),
-    );
+  // ── Fetch students ──
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res: any = await api.getAllStudents(1, 10);
+        const raw =
+          res?.data?.data ||
+          res?.data?.students ||
+          res?.students ||
+          res?.data ||
+          [];
+        const data = Array.isArray(raw) ? raw : [];
+        setStudents(data);
+      } catch {
+        toast.error("Failed to fetch students");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetch();
+  }, []);
+
+  // ── Toggle access — needs backend endpoint ──
+  const toggleAccess = async (id: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === "active" ? "revoked" : "active";
+      await api.toggleStudentAccess(id, newStatus);
+      setStudents((prev) =>
+        prev.map((s) => (s._id === id ? { ...s, status: newStatus } : s)),
+      );
+      toast.success(
+        newStatus === "active" ? "Access granted!" : "Access revoked!",
+      );
+    } catch {
+      setStudents((prev) =>
+        prev.map((s) =>
+          s._id === id
+            ? { ...s, status: s.status === "active" ? "revoked" : "active" }
+            : s,
+        ),
+      );
+    }
     setOpenMenu(null);
   };
 
   const filtered = students.filter((s) => {
     const matchSearch =
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.email.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "all" || s.status === filter;
+      s.name?.toLowerCase().includes(search.toLowerCase()) ||
+      s.email?.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filter === "all" || (s.status || "active") === filter;
     return matchSearch && matchFilter;
   });
 
-  const activeCount = students.filter((s) => s.status === "active").length;
+  const activeCount = students.filter(
+    (s) => (s.status || "active") === "active",
+  ).length;
   const revokedCount = students.filter((s) => s.status === "revoked").length;
 
   return (
@@ -130,10 +119,9 @@ export default function AdminStudents() {
                 </h1>
               </div>
               <p className="text-xs text-slate-400 dark:text-zinc-500 font-medium mt-0.5">
-                {students.length} total enrolled
+                {loading ? "Loading..." : `${students.length} total enrolled`}
               </p>
             </div>
-            {/* Search */}
             <div className="relative flex items-center">
               <Search
                 size={14}
@@ -183,9 +171,13 @@ export default function AdminStudents() {
                   <s.icon size={15} className={s.color} />
                 </div>
                 <div>
-                  <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white leading-none">
-                    {s.value}
-                  </p>
+                  {loading ? (
+                    <div className="h-5 w-8 bg-slate-100 dark:bg-zinc-800 rounded animate-pulse" />
+                  ) : (
+                    <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white leading-none">
+                      {s.value}
+                    </p>
+                  )}
                   <p className="text-[9px] sm:text-[10px] text-slate-400 dark:text-zinc-500 font-semibold uppercase tracking-wider mt-0.5">
                     {s.label}
                   </p>
@@ -213,7 +205,7 @@ export default function AdminStudents() {
 
           {/* ── Students list ── */}
           <div className="border border-slate-100 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
-            {/* Table header — desktop only */}
+            {/* Desktop header */}
             <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-6 py-3 border-b border-slate-100 dark:border-zinc-800">
               {["Student", "Enrolled", "Courses", ""].map((h, i) => (
                 <p
@@ -225,7 +217,18 @@ export default function AdminStudents() {
               ))}
             </div>
 
-            {filtered.length === 0 ? (
+            {/* Loading state */}
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2
+                  size={28}
+                  className="animate-spin text-[#0a348f] dark:text-blue-400"
+                />
+                <p className="text-xs font-black text-slate-300 dark:text-zinc-600 uppercase tracking-widest">
+                  Loading students...
+                </p>
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Users
                   size={32}
@@ -238,172 +241,209 @@ export default function AdminStudents() {
             ) : (
               <div className="divide-y divide-slate-50 dark:divide-zinc-800">
                 <AnimatePresence>
-                  {filtered.map((student, idx) => (
-                    <motion.div
-                      key={student.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: -16 }}
-                      transition={{ delay: idx * 0.04 }}
-                      className="relative px-4 sm:px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-zinc-800/20 transition-all"
-                    >
-                      {/* ── Mobile layout ── */}
-                      <div className="flex items-center gap-3 md:hidden">
-                        <div
-                          className={`w-10 h-10 rounded-2xl bg-linear-to-br ${AVATAR_COLORS[idx % AVATAR_COLORS.length]} flex items-center justify-center shrink-0 shadow-md`}
-                        >
-                          <span className="text-white font-black text-xs">
-                            {student.avatar}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-black text-sm text-slate-800 dark:text-white truncate">
-                              {student.name}
+                  {filtered.map((student, idx) => {
+                    const status = student.status || "active";
+                    const initials =
+                      student.name
+                        ?.split(" ")
+                        .map((w: string) => w[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2) || "ST";
+                    const courses = student.courseCount || 0;
+                    const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+
+                    return (
+                      <motion.div
+                        key={student._id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: -16 }}
+                        transition={{ delay: idx * 0.03 }}
+                        className="relative px-4 sm:px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-zinc-800/20 transition-all"
+                      >
+                        {/* ── Mobile ── */}
+                        <div className="flex items-center gap-3 md:hidden">
+                          <div
+                            className={`w-10 h-10 rounded-2xl bg-linear-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
+                          >
+                            {student.photoURL ? (
+                              <img
+                                src={student.photoURL}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-white font-black text-xs">
+                                {initials}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-black text-sm text-slate-800 dark:text-white truncate">
+                                {student.name}
+                              </p>
+                              <span
+                                className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                  status === "active"
+                                    ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    : "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400"
+                                }`}
+                              >
+                                {status === "active" ? "Active" : "Revoked"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 dark:text-zinc-500 truncate">
+                              {student.email}
                             </p>
-                            <span
-                              className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
-                                student.status === "active"
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-zinc-500">
+                                <Calendar size={9} />{" "}
+                                {formatDate(student.createdAt)}
+                              </span>
+                              <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-zinc-500">
+                                <BookOpen size={9} /> {courses} courses
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => toggleAccess(student._id, status)}
+                            className={`shrink-0 p-2 rounded-xl transition-all border ${
+                              status === "active"
+                                ? "bg-red-50 dark:bg-red-500/10 text-red-500 border-red-100 dark:border-red-500/20 hover:bg-red-500 hover:text-white"
+                                : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 border-emerald-100 dark:border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
+                            }`}
+                          >
+                            {status === "active" ? (
+                              <ShieldOff size={14} />
+                            ) : (
+                              <ShieldCheck size={14} />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* ── Desktop ── */}
+                        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 items-center">
+                          {/* Student info */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-2xl bg-linear-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
+                            >
+                              {student.photoURL ? (
+                                <img
+                                  src={student.photoURL}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-white font-black text-xs">
+                                  {initials}
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-black text-sm text-slate-800 dark:text-white truncate">
+                                {student.name}
+                              </p>
+                              <p className="text-xs text-slate-400 dark:text-zinc-500 truncate">
+                                {student.email}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Date */}
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 font-semibold">
+                            <Calendar
+                              size={11}
+                              className="text-slate-300 dark:text-zinc-600"
+                            />
+                            {formatDate(student.createdAt)}
+                          </div>
+
+                          {/* Courses + Status */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#0a348f] dark:text-blue-400 px-2.5 py-1 rounded-lg text-xs font-black">
+                              <BookOpen size={10} /> {courses}
+                            </div>
+                            <div
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black ${
+                                status === "active"
                                   ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                   : "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400"
                               }`}
                             >
-                              {student.status === "active"
-                                ? "Active"
-                                : "Revoked"}
-                            </span>
+                              {status === "active" ? (
+                                <>
+                                  <ShieldCheck size={10} /> Active
+                                </>
+                              ) : (
+                                <>
+                                  <ShieldOff size={10} /> Revoked
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-400 dark:text-zinc-500 truncate">
-                            {student.email}
-                          </p>
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-zinc-500">
-                              <Calendar size={9} /> {student.date}
-                            </span>
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-zinc-500">
-                              <BookOpen size={9} /> {student.courses} courses
-                            </span>
-                          </div>
-                        </div>
-                        {/* Mobile action */}
-                        <button
-                          onClick={() => toggleAccess(student.id)}
-                          className={`shrink-0 p-2 rounded-xl text-xs font-black transition-all border ${
-                            student.status === "active"
-                              ? "bg-red-50 dark:bg-red-500/10 text-red-500 border-red-100 dark:border-red-500/20 hover:bg-red-500 hover:text-white"
-                              : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 border-emerald-100 dark:border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
-                          }`}
-                        >
-                          {student.status === "active" ? (
-                            <ShieldOff size={14} />
-                          ) : (
-                            <ShieldCheck size={14} />
-                          )}
-                        </button>
-                      </div>
 
-                      {/* ── Desktop layout ── */}
-                      <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 items-center">
-                        {/* Student info */}
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`w-9 h-9 rounded-2xl bg-linear-to-br ${AVATAR_COLORS[idx % AVATAR_COLORS.length]} flex items-center justify-center shrink-0 shadow-md`}
-                          >
-                            <span className="text-white font-black text-xs">
-                              {student.avatar}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-black text-sm text-slate-800 dark:text-white truncate">
-                              {student.name}
-                            </p>
-                            <p className="text-xs text-slate-400 dark:text-zinc-500 truncate">
-                              {student.email}
-                            </p>
-                          </div>
-                        </div>
+                          {/* Action menu */}
+                          <div className="relative">
+                            <button
+                              onClick={() =>
+                                setOpenMenu(
+                                  openMenu === student._id ? null : student._id,
+                                )
+                              }
+                              className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-xl transition-all"
+                            >
+                              <MoreVertical
+                                size={15}
+                                className="text-slate-400 dark:text-zinc-500"
+                              />
+                            </button>
+                            <AnimatePresence>
+                              {openMenu === student._id && (
+                                <>
+                                  {/* Backdrop */}
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setOpenMenu(null)}
+                                  />
 
-                        {/* Date */}
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 font-semibold">
-                          <Calendar
-                            size={11}
-                            className="text-slate-300 dark:text-zinc-600"
-                          />
-                          {student.date}
-                        </div>
-
-                        {/* Courses */}
-                        <div className="flex items-center gap-1.5">
-                          <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#0a348f] dark:text-blue-400 px-2.5 py-1 rounded-lg text-xs font-black">
-                            <BookOpen size={10} /> {student.courses}
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.9, x: 10 }}
+                                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                                    exit={{ opacity: 0, scale: 0.9, x: 10 }}
+                                    className="absolute right-8 top-0 z-50 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden w-40"
+                                  >
+                                    <button
+                                      onClick={() =>
+                                        toggleAccess(student._id, status)
+                                      }
+                                      className={`w-full flex items-center gap-2 px-4 py-3 text-xs font-black transition-all hover:bg-slate-50 dark:hover:bg-zinc-700 ${
+                                        status === "active"
+                                          ? "text-red-500"
+                                          : "text-emerald-600 dark:text-emerald-400"
+                                      }`}
+                                    >
+                                      {status === "active" ? (
+                                        <>
+                                          <ShieldOff size={13} /> Revoke Access
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ShieldCheck size={13} /> Grant Access
+                                        </>
+                                      )}
+                                    </button>
+                                  </motion.div>
+                                </>
+                              )}
+                            </AnimatePresence>
                           </div>
-                          <div
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black ${
-                              student.status === "active"
-                                ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                : "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400"
-                            }`}
-                          >
-                            {student.status === "active" ? (
-                              <>
-                                <ShieldCheck size={10} /> Active
-                              </>
-                            ) : (
-                              <>
-                                <ShieldOff size={10} /> Revoked
-                              </>
-                            )}
-                          </div>
                         </div>
-
-                        {/* Action */}
-                        <div className="relative">
-                          <button
-                            onClick={() =>
-                              setOpenMenu(
-                                openMenu === student.id ? null : student.id,
-                              )
-                            }
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-xl transition-all"
-                          >
-                            <MoreVertical
-                              size={15}
-                              className="text-slate-400 dark:text-zinc-500"
-                            />
-                          </button>
-                          <AnimatePresence>
-                            {openMenu === student.id && (
-                              <motion.div
-                                initial={{ opacity: 0, scale: 0.9, y: -4 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.9, y: -4 }}
-                                className="absolute right-0 top-10 z-10 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden w-40"
-                              >
-                                <button
-                                  onClick={() => toggleAccess(student.id)}
-                                  className={`w-full flex items-center gap-2 px-4 py-3 text-xs font-black transition-all hover:bg-slate-50 dark:hover:bg-zinc-700 ${
-                                    student.status === "active"
-                                      ? "text-red-500"
-                                      : "text-emerald-600 dark:text-emerald-400"
-                                  }`}
-                                >
-                                  {student.status === "active" ? (
-                                    <>
-                                      <ShieldOff size={13} /> Revoke Access
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ShieldCheck size={13} /> Grant Access
-                                    </>
-                                  )}
-                                </button>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    );
+                  })}
                 </AnimatePresence>
               </div>
             )}
@@ -411,9 +451,9 @@ export default function AdminStudents() {
         </div>
       </main>
 
-      {/* Close dropdown on outside click */}
+      {/* Backdrop */}
       {openMenu !== null && (
-        <div className="fixed inset-0 z-0" onClick={() => setOpenMenu(null)} />
+        <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
       )}
     </div>
   );

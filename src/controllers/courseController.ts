@@ -52,17 +52,21 @@ const processLectures = async (
     try { lecturesMeta = JSON.parse(lecturesRaw); } catch { return existingLectures; }
 
     const results = await Promise.all(
-        lecturesMeta.map(async (meta) => {
+        lecturesMeta.map(async (meta, index) => {
+            const validTitle = meta.title && meta.title.trim() !== ""
+                ? meta.title.trim()
+                : `Lecture ${index + 1}`;
+
             // New video file uploaded?
             if (meta.hasNewVideo) {
                 const videoFile = formData.get(`lectureVideo_${meta.fileIndex}`) as File | null;
                 if (videoFile instanceof File && videoFile.size > 0) {
                     const url = await uploadToCloudinary(videoFile, "video");
-                    return { title: meta.title, videoUrl: url };
+                    return { title: validTitle, videoUrl: url };
                 }
             }
             // Keep existing URL
-            return { title: meta.title, videoUrl: meta.videoUrl || "" };
+            return { title: validTitle, videoUrl: meta.videoUrl || "" };
         })
     );
 
@@ -75,6 +79,7 @@ const processLectures = async (
 export const createCourse = async (req: Request) => {
     try {
         await dbConnect();
+
         const data = await req.formData();
 
         const title = data.get("title") as string;
@@ -100,27 +105,40 @@ export const createCourse = async (req: Request) => {
         const introVideoFile = data.get("videoFile") as File | null;
         const instructorImageFile = data.get("instructorImage") as File | null;
 
+        console.log("⏳ Uploading files to Cloudinary...");
+
         // Upload optional files in parallel
         const [thumbnailUrl, videoUrl, instructorImageUrl] = await Promise.all([
-            thumbnailFile instanceof File && thumbnailFile.size > 0
+            thumbnailFile && thumbnailFile.size > 0
                 ? uploadToCloudinary(thumbnailFile, "image") : Promise.resolve(""),
-            introVideoFile instanceof File && introVideoFile.size > 0
+            introVideoFile && introVideoFile.size > 0
                 ? uploadToCloudinary(introVideoFile, "video") : Promise.resolve(""),
-            instructorImageFile instanceof File && instructorImageFile.size > 0
+            instructorImageFile && instructorImageFile.size > 0
                 ? uploadToCloudinary(instructorImageFile, "image") : Promise.resolve(""),
         ]);
+
+        console.log("✅ Main files uploaded! Processing lectures...");
 
         // Process lectures (each may have its own video file)
         const lectures = await processLectures(data);
 
+        console.log("✅ Lectures processed! Saving to Database...");
+
         const newCourse = await Course.create({
-            title, price: Number(price), category, description,
+            title,
+            price: Number(price),
+            category,
+            description,
             instructor,
             instructorImage: instructorImageUrl,
-            level, language, hours, rating, badge,
+            level,
+            language,
+            hours,
+            rating,
+            badge,
             thumbnail: thumbnailUrl,
             videoUrl: videoUrl,
-            lectures,
+            lectures, // Yahan ab safe data jayega jis mein default titles maujood honge
         });
 
         return NextResponse.json({
@@ -130,7 +148,13 @@ export const createCourse = async (req: Request) => {
         }, { status: 201 });
 
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("🔥 BACKEND CRASH DETAILS:", error);
+
+        return NextResponse.json({
+            success: false,
+            error: error.message || "File too large or unknown server error occurred.",
+            fullError: error
+        }, { status: 500 });
     }
 };
 

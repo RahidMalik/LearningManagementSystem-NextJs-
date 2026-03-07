@@ -188,6 +188,12 @@ export const api = {
             method: "GET"
         })
     },
+    toggleStudentAccess: async (userId: string, status: string) => {
+        return await apiClient.request("/admin/students/toggle-access", {
+            method: "PUT",
+            data: { userId, status },
+        });
+    },
     // ==========================================
     //           ADMIN CREATE COURSES
     // ==========================================
@@ -309,6 +315,9 @@ export const api = {
         return await apiClient.request("/admin/revenue", {
             method: "GET",
         });
+    },
+    getCourseStats: async (): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/admin/course-stats")
     },
     // ==========================================
     //           Send email
