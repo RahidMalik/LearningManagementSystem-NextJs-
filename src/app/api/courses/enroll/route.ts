@@ -1,17 +1,20 @@
-// src/app/api/courses/enroll/route.ts
+// app/api/courses/enroll/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { enrollCourse } from "@/controllers/courseController";
 import validateRequest from "@/middleware/authMiddleware";
+import { enrollCourse } from "@/controllers/courseController";
 
 export async function POST(req: NextRequest) {
-    const auth = await validateRequest(req);
+    const auth = await validateRequest(req) as any;
     if (!auth.success) {
-        return NextResponse.json({ error: auth.error }, { status: 401 });
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { courseId } = await req.json();
+    const body = await req.json();
+    const { courseId, accessType } = body;
+
     return enrollCourse({
         userId: auth.user.userId,
         courseId,
+        accessType: accessType || "full",
     });
 }

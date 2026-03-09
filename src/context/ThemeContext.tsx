@@ -47,7 +47,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setMounted(true);
   }, []);
 
-  //  Theme change hone par <html> class update karo
   useEffect(() => {
     if (!mounted) return;
     const root = document.documentElement;
@@ -63,7 +62,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setThemeState((prev) => (prev === "light" ? "dark" : "light"));
   const setTheme = (t: Theme) => setThemeState(t);
 
-  //  Flash rokne ke liye mount se pehle null return
   if (!mounted) return null;
 
   return (

@@ -245,31 +245,49 @@ export const api = {
     // ==========================================
     //           Payment Method
     // ==========================================
-    enrollInCourse: async (courseId: string): Promise<ApiResponse<any>> => {
+    enrollInCourse: async (courseId: string, accessType: "half" | "full" = "full") => {
         return await apiClient.request("/courses/enroll", {
             method: "POST",
-            data: { courseId },
+            data: { courseId, accessType },
         });
     },
-    checkEnrollment: async (courseId: string): Promise<{ success: boolean; isEnrolled: boolean }> => {
+    checkEnrollment: async (courseId: string): Promise<{
+        success: boolean;
+        isEnrolled: boolean;
+        accessType: "half" | "full" | null;
+        paymentMethod: "card" | "wallet" | null;  // ← ADD
+    }> => {
         try {
             const res = await apiClient.request(`/courses/check-enrollment?courseId=${courseId}`);
-            const data = (res.data ?? res) as any;
-            return {
-                success: true,
-                isEnrolled: data?.isEnrolled === true,
-            };
+            const data = (res?.data ?? res) as any;
+            const inner = data?.data ?? data;
+
+            const isEnrolled = inner?.isEnrolled === true;
+            const accessType: "half" | "full" | null =
+                inner?.accessType === "half" ? "half" :
+                    inner?.accessType === "full" ? "full" :
+                        isEnrolled ? "full" : null;
+
+            const paymentMethod: "card" | "wallet" | null =
+                inner?.paymentMethod === "wallet" ? "wallet" :
+                    inner?.paymentMethod === "card" ? "card" :
+                        isEnrolled ? "card" : null;   // default card
+
+            return { success: true, isEnrolled, accessType, paymentMethod };
         } catch {
-            return { success: false, isEnrolled: false };
+            return { success: false, isEnrolled: false, accessType: null, paymentMethod: null };
         }
     },
     // ==========================================
     //           Payment Logic
     // ==========================================
-    createPaymentIntent: async (courseId: string): Promise<ApiResponse<{ clientSecret: string; amount: number }>> => {
+    createPaymentIntent: async (
+        courseId: string,
+        accessType: string = "full"
+    ): Promise<ApiResponse<{ clientSecret: string; amount: number }>> => {
         return await apiClient.request("/payments/create-intent", {
             method: "POST",
-            data: { courseId },
+            data: { courseId, accessType },
         });
     },
 
@@ -304,7 +322,8 @@ export const api = {
         phone: string;
         amount: number;
         userId: string;
-        receiptUrl: string; // Ensure this is here
+        receiptUrl: string;
+        accessType?: string;
     }): Promise<ApiResponse<{ success: boolean; message: string }>> => {
         return await apiClient.request("/payments/wallet-verify", {
             method: "POST",
@@ -318,6 +337,25 @@ export const api = {
     },
     getCourseStats: async (): Promise<ApiResponse<any>> => {
         return await apiClient.request("/admin/course-stats")
+    },
+    getAdminWalletPayments: async (): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/admin/payments", {
+            method: "GET",
+        });
+    },
+
+    approveWalletPayment: async (paymentId: string): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/admin/payments/approve", {
+            method: "POST",
+            data: { paymentId },
+        });
+    },
+
+    rejectWalletPayment: async (paymentId: string): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/admin/payments/reject", {
+            method: "POST",
+            data: { paymentId },
+        });
     },
     // ==========================================
     //           Send email

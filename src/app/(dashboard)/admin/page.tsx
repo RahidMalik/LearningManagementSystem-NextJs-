@@ -3,6 +3,7 @@
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminStats from "@/components/admin/AdminStats";
 import CourseTable from "@/components/admin/CourseTable";
+import AdminPendingPayments from "@/components/admin/Adminpendingpayments";
 import { TrendingUp, Calendar } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -16,12 +17,10 @@ export default function AdminDashboard() {
   return (
     <div className="flex min-h-screen">
       <AdminSidebar />
-
       <main className="flex-1 overflow-auto">
         {/* ── Top Header Bar ── */}
         <div className="sticky top-0 z-30 backdrop-blur-md border-b border-slate-100 dark:border-zinc-800 px-8 py-4">
           <div className="flex items-center justify-between gap-4">
-            {/* Left — Title */}
             <div>
               <div className="flex items-center gap-2">
                 <TrendingUp
@@ -49,7 +48,6 @@ export default function AdminDashboard() {
         <div className="px-8 py-8 space-y-8">
           {/* Welcome banner */}
           <div className="relative overflow-hidden bg-linear-to-r from-[#0a348f] to-blue-500 rounded-3xl px-8 py-6 shadow-xl shadow-blue-200 dark:shadow-blue-900/30">
-            {/* Background decoration */}
             <div className="absolute right-0 top-0 w-64 h-full opacity-10">
               <div className="absolute top-4 right-8 w-32 h-32 rounded-full border-4 border-white" />
               <div className="absolute top-12 right-24 w-16 h-16 rounded-full border-2 border-white" />
@@ -81,9 +79,6 @@ export default function AdminDashboard() {
             <AdminStats />
           </div>
 
-          {/* Divider */}
-          <div className="h-px bg-linear-to-r from-transparent via-slate-200 dark:via-zinc-800 to-transparent" />
-
           {/* Course Table */}
           <div>
             <div className="flex items-center justify-between mb-5">
@@ -101,6 +96,16 @@ export default function AdminDashboard() {
               <CourseTable />
             </div>
           </div>
+          {/* Divider */}
+          <div className="h-px bg-linear-to-r from-transparent via-slate-200 dark:via-zinc-800 to-transparent" />
+
+          {/* ── Wallet Payments Section ── */}
+          <div className="rounded-3xl border border-slate-100 dark:border-zinc-800 shadow-sm p-6">
+            <AdminPendingPayments />
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-linear-to-r from-transparent via-slate-200 dark:via-zinc-800 to-transparent" />
         </div>
       </main>
     </div>

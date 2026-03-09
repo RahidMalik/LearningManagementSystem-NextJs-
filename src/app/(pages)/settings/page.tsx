@@ -11,19 +11,17 @@ import {
   Sun,
   LogIn,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { api } from "@/services/api";
-
-// Theme Context aur apka apna Theme Toggle Component import karein
 import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function SettingsPage() {
   const { isDark } = useTheme();
-
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -37,22 +35,17 @@ export default function SettingsPage() {
           setLoading(false);
           return;
         }
-
         const res = await api.getProfile();
-        if (res && res.success) {
+        if (res?.success) {
           setUser(res.user);
           setIsLoggedIn(true);
-        } else {
-          setIsLoggedIn(false);
-        }
-      } catch (error) {
-        console.error("Error fetching user settings:", error);
+        } else setIsLoggedIn(false);
+      } catch {
         setIsLoggedIn(false);
       } finally {
         setLoading(false);
       }
     };
-
     fetchUser();
   }, []);
 
@@ -65,193 +58,193 @@ export default function SettingsPage() {
 
   const settingsOptions = [
     {
-      icon: <User size={20} />,
+      icon: User,
       label: "Edit Profile",
       href: "/profile",
-      color: "text-blue-600",
+      accent: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     },
     {
-      icon: <FileText size={20} />,
+      icon: FileText,
       label: "Terms & Conditions",
       href: "/terms",
-      color: "text-[#0a348f]",
+      accent: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
     },
     {
-      icon: <HelpCircle size={20} />,
+      icon: HelpCircle,
       label: "Help Center",
       href: "/help",
-      color: "text-blue-500",
+      accent: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
     },
     {
-      icon: <UserPlus size={20} />,
+      icon: UserPlus,
       label: "Invite Friends",
       href: "/invite",
-      color: "text-blue-700",
+      accent: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
     },
   ];
 
   return (
-    <div
-      className={`min-h-screen py-8 px-4 flex justify-center transition-colors duration-300 ${
-        isDark ? "bg-slate-900" : "bg-slate-50"
-      }`}
-    >
+    <div className="min-h-screen flex justify-center px-4 py-10 transition-colors duration-300">
+      {/* Subtle radial behind card */}
       <div
-        className={`w-full max-w-xl rounded-3xl p-6 md:p-8 shadow-sm border transition-colors duration-300 ${
-          isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
-        }`}
-      >
-        <h1
-          className={`text-2xl font-bold mb-8 ${isDark ? "text-white" : "text-slate-900"}`}
-        >
-          Settings
-        </h1>
+        className="pointer-events-none fixed inset-0 opacity-30 dark:opacity-20"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(10,52,143,0.10) 0%, transparent 70%)",
+        }}
+      />
+
+      <div className="relative w-full max-w-md z-10">
+        {/* ── Header ── */}
+        <div className="mb-8 flex items-end justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0a348f] dark:text-blue-400 mb-1">
+              Account
+            </p>
+            <h1 className="text-3xl font-black text-foreground">Settings</h1>
+          </div>
+          <Sparkles
+            size={18}
+            className="text-[#0a348f]/30 dark:text-blue-500/40 mb-1"
+          />
+        </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-[#0a348f]" />
-            <p className="mt-4 text-slate-500 text-sm">Loading settings...</p>
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#0a348f]/10 flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-[#0a348f]" />
+            </div>
+            <p className="text-muted-foreground text-xs font-semibold uppercase tracking-widest">
+              Loading…
+            </p>
           </div>
         ) : isLoggedIn ? (
-          <>
-            {/* --- USER PROFILE SECTION --- */}
-            <div
-              className={`flex items-center gap-5 p-4 rounded-2xl mb-8 border transition-all ${
-                isDark
-                  ? "bg-slate-700/50 border-slate-600"
-                  : "bg-slate-50 border-slate-100"
-              }`}
-            >
-              <Avatar className="h-16 w-16 md:h-20 md:w-20 border-2 border-white shadow-md">
-                <AvatarImage
-                  src={user?.photoURL}
-                  alt={user?.name}
-                  className="object-cover"
-                />
-                <AvatarFallback className="bg-[#0a348f] text-white text-xl font-bold">
-                  {userInitial}
-                </AvatarFallback>
-              </Avatar>
+          <div className="space-y-3">
+            {/* ── Profile card ── */}
+            <div className="relative rounded-3xl overflow-hidden border border-border p-5 mb-2">
+              {/* Blue strip top */}
+              <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-[#0a348f] via-blue-400 to-transparent" />
 
-              <div className="flex-1 min-w-0">
-                <h2
-                  className={`text-lg md:text-xl font-bold truncate ${
-                    isDark ? "text-white" : "text-slate-800"
-                  }`}
-                >
-                  {user?.name || "User Name"}
-                </h2>
-                <p
-                  className={`text-sm truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}
-                >
-                  {user?.email || "email@example.com"}
-                </p>
-              </div>
-            </div>
+              <div className="flex items-center gap-4">
+                <div className="relative shrink-0">
+                  <Avatar className="h-16 w-16 border-2 border-[#0a348f]/20 shadow-lg">
+                    <AvatarImage
+                      src={user?.photoURL}
+                      alt={user?.name}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="bg-[#0a348f] text-white text-xl font-black">
+                      {userInitial}
+                    </AvatarFallback>
+                  </Avatar>
+                  {/* Online dot */}
+                  <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-background" />
+                </div>
 
-            <div className="space-y-2">
-              {settingsOptions.map((item, index) => (
-                <Link
-                  key={index}
-                  href={item.href}
-                  className={`flex items-center justify-between p-4 rounded-2xl transition-all group ${
-                    isDark ? "hover:bg-slate-700" : "hover:bg-slate-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span
-                      className={`${item.color} group-hover:scale-110 transition-transform`}
-                    >
-                      {item.icon}
-                    </span>
-                    <span
-                      className={`font-semibold ${isDark ? "text-slate-200" : "text-slate-700"}`}
-                    >
-                      {item.label}
-                    </span>
-                  </div>
-                  <ChevronRight
-                    size={18}
-                    className={`transition-colors ${
-                      isDark
-                        ? "text-slate-500 group-hover:text-blue-400"
-                        : "text-slate-300 group-hover:text-[#0a348f]"
-                    }`}
-                  />
-                </Link>
-              ))}
-
-              {/* GLOBAL DARK MODE TOGGLE USING YOUR COMPONENT */}
-              <div
-                className={`flex items-center justify-between p-4 rounded-2xl mt-2 border border-dashed ${
-                  isDark
-                    ? "bg-slate-800 border-slate-600"
-                    : "bg-slate-50/50 border-slate-200"
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  {isDark ? (
-                    <Moon size={20} className="text-indigo-400" />
-                  ) : (
-                    <Sun size={20} className="text-amber-500" />
-                  )}
-                  <span
-                    className={`font-semibold ${isDark ? "text-slate-200" : "text-slate-700"}`}
-                  >
-                    Dark Mode
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-black text-foreground truncate leading-tight">
+                    {user?.name || "User Name"}
+                  </h2>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {user?.email || "email@example.com"}
+                  </p>
+                  <span className="inline-flex items-center mt-2 text-[9px] font-black uppercase tracking-widest text-[#0a348f] dark:text-blue-400 bg-[#0a348f]/8 dark:bg-blue-500/10 px-2 py-0.5 rounded-full">
+                    Student
                   </span>
                 </div>
-
-                {/* YAHAN AAPKA KHOOBSURAT ANIMATED TOGGLE LAGA DIYA HAI */}
-                <ThemeToggle />
               </div>
+            </div>
 
-              {/* Logout Button */}
-              <button
-                onClick={handleLogout}
-                className={`w-full flex items-center justify-between p-4 mt-6 rounded-2xl transition-all group border border-transparent ${
-                  isDark
-                    ? "hover:bg-red-950/30 hover:border-red-900"
-                    : "hover:bg-red-50 hover:border-red-100"
-                }`}
-              >
-                <div className="flex items-center gap-4 text-red-500">
-                  <LogOut size={20} />
-                  <span className="font-bold">Logout</span>
+            {/* ── Menu items ── */}
+            <div className="rounded-3xl border border-border overflow-hidden divide-y divide-border">
+              {settingsOptions.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={index}
+                    href={item.href}
+                    className="flex items-center justify-between px-5 py-4 group hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.accent}`}
+                      >
+                        <Icon size={17} />
+                      </div>
+                      <span className="font-semibold text-sm text-foreground">
+                        {item.label}
+                      </span>
+                    </div>
+                    <ChevronRight
+                      size={15}
+                      className="text-muted-foreground group-hover:text-[#0a348f] dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all"
+                    />
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* ── Dark mode toggle ── */}
+            <div className="rounded-3xl border border-dashed border-border px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? "bg-indigo-500/10 text-indigo-400" : "bg-amber-500/10 text-amber-500"}`}
+                >
+                  {isDark ? <Moon size={17} /> : <Sun size={17} />}
                 </div>
-                <ChevronRight
-                  size={18}
-                  className="text-red-300 group-hover:text-red-500"
-                />
-              </button>
+                <div>
+                  <p className="font-semibold text-sm text-foreground">
+                    Dark Mode
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {isDark ? "Currently on" : "Currently off"}
+                  </p>
+                </div>
+              </div>
+              <ThemeToggle />
             </div>
-          </>
-        ) : (
-          /* --- NOT LOGGED IN STATE --- */
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div
-              className={`h-20 w-20 rounded-full flex items-center justify-center mb-6 ${
-                isDark ? "bg-slate-700" : "bg-slate-100"
-              }`}
+
+            {/* ── Logout ── */}
+            <button
+              onClick={handleLogout}
+              className="w-full rounded-3xl border border-transparent hover:border-red-200 dark:hover:border-red-900/40 px-5 py-4 flex items-center justify-between group hover:bg-red-50/60 dark:hover:bg-red-950/20 transition-all"
             >
-              <User
-                size={40}
-                className={isDark ? "text-slate-500" : "text-slate-400"}
+              <div className="flex items-center gap-4">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-500/10 text-red-500 shrink-0">
+                  <LogOut size={17} />
+                </div>
+                <span className="font-bold text-sm text-red-500">Logout</span>
+              </div>
+              <ChevronRight
+                size={15}
+                className="text-red-300 group-hover:text-red-500 group-hover:translate-x-0.5 transition-all"
               />
+            </button>
+          </div>
+        ) : (
+          /* ── Not logged in ── */
+          <div className="rounded-3xl border border-border p-10 flex flex-col items-center text-center gap-6">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-3xl bg-muted flex items-center justify-center">
+                <User size={36} className="text-muted-foreground" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#0a348f] rounded-full flex items-center justify-center">
+                <span className="text-white text-[8px] font-black">?</span>
+              </div>
             </div>
-            <h2
-              className={`text-xl font-bold mb-2 ${isDark ? "text-white" : "text-slate-800"}`}
-            >
-              You are not logged in
-            </h2>
-            <p
-              className={`text-sm mb-8 max-w-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}
-            >
-              Please log in to access your profile and settings.
-            </p>
-            <Link href="/login" className="w-full sm:w-auto">
-              <button className="flex items-center justify-center gap-2 bg-[#0a348f] text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-800 transition-all shadow-lg shadow-blue-500/30 w-full">
-                <LogIn size={20} /> Login Now
+
+            <div>
+              <h2 className="text-xl font-black text-foreground mb-2">
+                Not logged in
+              </h2>
+              <p className="text-sm text-muted-foreground max-w-55 leading-relaxed">
+                Log in to access your profile and settings.
+              </p>
+            </div>
+
+            <Link href="/login" className="w-full">
+              <button className="w-full flex items-center justify-center gap-2 bg-[#0a348f] text-white h-12 rounded-2xl font-black text-sm hover:bg-blue-800 transition-all active:scale-95 shadow-lg shadow-blue-500/20">
+                <LogIn size={17} /> Login Now
               </button>
             </Link>
           </div>
