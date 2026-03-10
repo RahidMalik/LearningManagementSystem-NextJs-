@@ -6,7 +6,6 @@ import "plyr/dist/plyr.css";
 import {
   Rewind,
   FastForward,
-  Gauge,
   PictureInPicture2,
   Keyboard,
   X,
@@ -23,17 +22,14 @@ interface Props {
   allowSeek?: boolean;
 }
 
-const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-
 const SHORTCUTS = [
   { key: "Space", label: "Play / Pause" },
   { key: "←", label: "Rewind 10s" },
-  { key: "→", label: "Forward 10s (blocked if restricted)" },
+  { key: "→", label: "Forward (only watched part)" },
   { key: "↑", label: "Volume Up" },
   { key: "↓", label: "Volume Down" },
   { key: "F", label: "Fullscreen" },
   { key: "P", label: "Picture-in-Picture" },
-  { key: "S", label: "Speed Cycle" },
   { key: "R", label: "Restart from beginning" },
 ];
 
@@ -49,34 +45,27 @@ export const CybexPlayer = ({
   const clickTimeout = useRef<NodeJS.Timeout | null>(null);
   const saveInterval = useRef<NodeJS.Timeout | null>(null);
   const maxTimeRef = useRef<number>(0);
-
-  // 🚀 FIX: Prevent multiple unlock triggers
   const endedFiredRef = useRef<boolean>(false);
 
-  // ✅ Always-fresh refs — no stale closures
   const onEndedRef = useRef(onEnded);
   const onPlayRef = useRef(onPlay);
   const allowSeekRef = useRef(allowSeek);
-
   useEffect(() => {
     onEndedRef.current = onEnded;
   }, [onEnded]);
-
   useEffect(() => {
     onPlayRef.current = onPlay;
   }, [onPlay]);
-
   useEffect(() => {
     allowSeekRef.current = allowSeek;
   }, [allowSeek]);
 
-  const [speed, setSpeed] = useState(1);
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [resumePrompt, setResumePrompt] = useState<number | null>(null);
   const [isPip, setIsPip] = useState(false);
 
   const storageKey = lectureId ? `plyr-pos-${lectureId}` : null;
+  const maxTimeKey = lectureId ? `plyr-max-${lectureId}` : null; // ✅ persist max watched
   const getPlayer = () => playerRef.current?.plyr as any;
 
   const showSeekBlockFlash = () => {
@@ -90,7 +79,6 @@ export const CybexPlayer = ({
     }, 800);
   };
 
-  // ✅ Attach events DIRECTLY to <video> element
   useEffect(() => {
     let attempts = 0;
     const tryAttach = setInterval(() => {
@@ -104,77 +92,67 @@ export const CybexPlayer = ({
       }
       clearInterval(tryAttach);
 
-      // Restore volume
       const savedVol = parseFloat(localStorage.getItem("plyr-volume") || "1");
       if (!isNaN(savedVol)) video.volume = savedVol;
 
-      // Restore position
-      if (storageKey && allowSeekRef.current) {
-        const saved = parseFloat(localStorage.getItem(storageKey) || "0");
-        if (saved > 10) setResumePrompt(saved);
-      }
-
-      // Restore speed
-      if (lectureId) {
-        const s = parseFloat(
-          localStorage.getItem(`plyr-speed-${lectureId}`) || "1",
-        );
-        if (!isNaN(s)) {
-          setSpeed(s);
-          video.playbackRate = s;
+      // ✅ Restore max watched time — so user can seek back to it after reload
+      if (maxTimeKey) {
+        const savedMax = parseFloat(localStorage.getItem(maxTimeKey) || "0");
+        if (!isNaN(savedMax) && savedMax > 0) {
+          maxTimeRef.current = savedMax;
         }
       }
 
-      const triggerUnlock = () => {
-        if (!endedFiredRef.current) {
-          endedFiredRef.current = true;
-          if (storageKey) localStorage.removeItem(storageKey);
-          onEndedRef.current?.();
-        }
+      // ✅ Resume prompt — show for ALL users (not just allowSeek)
+      if (maxTimeKey) {
+        const savedMax = maxTimeRef.current;
+        if (savedMax > 10) setResumePrompt(savedMax);
+      }
+
+      const triggerComplete = (source: string) => {
+        if (endedFiredRef.current) return;
+        endedFiredRef.current = true;
+        console.log(`🎬 Complete! (${source})`);
+        if (storageKey) localStorage.removeItem(storageKey);
+        if (maxTimeKey) localStorage.removeItem(maxTimeKey); // ✅ clear on finish
+        onEndedRef.current?.();
       };
 
-      // ── Track max watched time & High-Speed UNLOCK FIX ──
       const onTimeUpdate = () => {
+        // ✅ Track max reached — user can freely go back to any watched second
         if (video.currentTime > maxTimeRef.current) {
           maxTimeRef.current = video.currentTime;
         }
-
-        // Save position
         if (storageKey && video.currentTime > 5) {
           localStorage.setItem(storageKey, String(video.currentTime));
         }
+        // ✅ Always persist max watched — even when allowSeek=false
+        if (maxTimeKey && video.currentTime > 0) {
+          localStorage.setItem(maxTimeKey, String(maxTimeRef.current));
+        }
         localStorage.setItem("plyr-volume", String(video.volume));
 
-        // 🚀 FIX: High speed (2x) mein frames miss ho jate hain,
-        // isliye hum percentage (95%) check karte hain chahe speed jitni bhi ho
         if (video.duration > 0) {
-          const percentComplete = video.currentTime / video.duration;
-          if (
-            percentComplete >= 0.95 ||
-            video.duration - video.currentTime <= 1
-          ) {
-            triggerUnlock();
-          }
+          const pct = video.currentTime / video.duration;
+          const remaining = video.duration - video.currentTime;
+          if (pct >= 0.85 || remaining <= 2) triggerComplete("timeupdate");
         }
       };
 
-      // ── Block seeking ──
       const onSeeking = () => {
         if (allowSeekRef.current) return;
+        // ✅ Full block — reset to max watched, no seeking at all
         if (video.currentTime > maxTimeRef.current + 0.5) {
           video.currentTime = maxTimeRef.current;
           showSeekBlockFlash();
         }
       };
 
-      // ── Play ──
       const onPlayEvt = () => {
         onPlayRef.current?.();
       };
-
-      // ── Ended (Fail-safe for 2x speed) ──
       const onEndedEvt = () => {
-        triggerUnlock();
+        triggerComplete("ended");
       };
 
       video.addEventListener("timeupdate", onTimeUpdate);
@@ -182,7 +160,6 @@ export const CybexPlayer = ({
       video.addEventListener("play", onPlayEvt);
       video.addEventListener("ended", onEndedEvt);
 
-      // Cleanup
       return () => {
         video.removeEventListener("timeupdate", onTimeUpdate);
         video.removeEventListener("seeking", onSeeking);
@@ -191,15 +168,14 @@ export const CybexPlayer = ({
         if (saveInterval.current) clearInterval(saveInterval.current);
       };
     }, 100);
-
     return () => clearInterval(tryAttach);
-  }, [videoUrl, lectureId, storageKey]);
+  }, [videoUrl]);
 
-  // Reset on video change
   useEffect(() => {
     maxTimeRef.current = 0;
     endedFiredRef.current = false;
     setResumePrompt(null);
+    // Note: do NOT clear maxTimeKey here — it persists across sessions
   }, [videoUrl]);
 
   const handleManualSkip = useCallback((seconds: number) => {
@@ -241,23 +217,6 @@ export const CybexPlayer = ({
     [handleManualSkip],
   );
 
-  const applySpeed = useCallback(
-    (s: number) => {
-      const p = getPlayer();
-      if (p) p.speed = s;
-      setSpeed(s);
-      setShowSpeedMenu(false);
-      if (lectureId) localStorage.setItem(`plyr-speed-${lectureId}`, String(s));
-    },
-    [lectureId],
-  );
-
-  const cycleSpeed = useCallback(() => {
-    const idx = SPEEDS.indexOf(speed);
-    const next = SPEEDS[(idx + 1) % SPEEDS.length];
-    applySpeed(next);
-  }, [speed, applySpeed]);
-
   const togglePip = useCallback(async () => {
     const p = getPlayer();
     if (!p) return;
@@ -274,7 +233,6 @@ export const CybexPlayer = ({
     }
   }, []);
 
-  // ── Keyboard ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = document.activeElement?.tagName || "";
@@ -314,10 +272,6 @@ export const CybexPlayer = ({
           e.preventDefault();
           togglePip();
           break;
-        case "KeyS":
-          e.preventDefault();
-          cycleSpeed();
-          break;
         case "KeyR":
           e.preventDefault();
           {
@@ -332,11 +286,14 @@ export const CybexPlayer = ({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleManualSkip, togglePip, cycleSpeed]);
+  }, [handleManualSkip, togglePip]);
 
   const doResume = () => {
     const p = getPlayer();
-    if (p && resumePrompt) p.currentTime = resumePrompt;
+    if (p && resumePrompt) {
+      // ✅ Resume to last watched position (maxTime)
+      p.currentTime = resumePrompt;
+    }
     setResumePrompt(null);
     p?.play();
   };
@@ -360,7 +317,7 @@ export const CybexPlayer = ({
     >
       {!allowSeek && <style>{progressBlockCSS}</style>}
 
-      {/* Plyr */}
+      {/* Plyr — no settings, no speed */}
       <div className="absolute inset-0 w-full h-full [&_.plyr]:h-full [&_.plyr__video-wrapper]:h-full [&_.plyr__video-wrapper_video]:object-contain! [&_.plyr__video-wrapper_video]:h-full!">
         <Plyr
           ref={playerRef}
@@ -377,29 +334,27 @@ export const CybexPlayer = ({
                 "current-time",
                 "mute",
                 "volume",
-                "settings", // Keep settings for quality/captions if any
                 "fullscreen",
               ],
               keyboard: { focused: true, global: false },
-              tooltips: { controls: true, seek: allowSeek },
+              tooltips: { controls: true, seek: false },
               clickToPlay: false,
-              // 🚀 FIX: Removed speed from settings to avoid duplicate options
-              settings: ["captions", "quality", "loop"],
             } as any
           }
         />
       </div>
 
+      {/* Banner */}
       {!allowSeek && (
         <div className="absolute top-0 left-0 right-0 z-30 flex items-center gap-2 bg-amber-500/90 backdrop-blur px-4 py-1.5 pointer-events-none">
           <Lock size={11} className="text-black shrink-0" />
           <p className="text-black text-[10px] font-black uppercase tracking-wider">
-            Watch the full video — seeking is disabled • Complete it to unlock
-            the next one
+            Seeking is disabled • Watch the full video to unlock next lecture
           </p>
         </div>
       )}
 
+      {/* Forward block flash */}
       <div
         id="seek-block-flash"
         className="absolute inset-0 z-40 pointer-events-none opacity-0 transition-opacity duration-300 flex items-center justify-center"
@@ -407,7 +362,7 @@ export const CybexPlayer = ({
         <div className="bg-black/80 backdrop-blur text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-2xl">
           <Lock size={18} className="text-amber-400" />
           <span className="text-sm font-black">
-            You cannot skip without watching the full video
+            You cannot skip — watch the full video to unlock next
           </span>
         </div>
       </div>
@@ -455,29 +410,8 @@ export const CybexPlayer = ({
         </div>
       ))}
 
-      {/* Custom controls */}
+      {/* Custom controls — PiP, Restart, Shortcuts only */}
       <div className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300">
-        <div className="relative">
-          <button
-            onClick={() => setShowSpeedMenu((v) => !v)}
-            className="flex items-center gap-1.5 bg-black/70 backdrop-blur text-white text-xs font-black px-3 py-1.5 rounded-full hover:bg-black/90 transition-all border border-white/10"
-          >
-            <Gauge size={13} /> {speed}x
-          </button>
-          {showSpeedMenu && (
-            <div className="absolute top-9 right-0 bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-40 w-28">
-              {SPEEDS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => applySpeed(s)}
-                  className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${speed === s ? "bg-white text-black" : "text-zinc-300 hover:bg-zinc-800"}`}
-                >
-                  {s === 1 ? "Normal" : `${s}x`}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
         <button
           onClick={togglePip}
           title="PiP (P)"
@@ -513,7 +447,7 @@ export const CybexPlayer = ({
           <div className="bg-zinc-900/95 backdrop-blur border border-white/10 rounded-2xl px-5 py-3 flex items-center gap-4 shadow-2xl">
             <div>
               <p className="text-white text-xs font-bold">
-                Resume from {formatTime(resumePrompt)}?
+                Resume from where you left off ({formatTime(resumePrompt)})?
               </p>
               <p className="text-zinc-500 text-[10px]">
                 You left off here last time
@@ -569,16 +503,6 @@ export const CybexPlayer = ({
           </div>
         </div>
       )}
-
-      {/* Speed flash */}
-      <div
-        id="speed-flash"
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30 opacity-0 transition-opacity"
-      >
-        <div className="bg-black/70 text-white font-black text-2xl px-5 py-3 rounded-2xl">
-          {speed}x
-        </div>
-      </div>
     </div>
   );
 };

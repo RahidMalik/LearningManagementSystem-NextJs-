@@ -348,29 +348,44 @@ export async function EnrollInCourse(request: NextRequest) {
 export async function CheckEnrollment(request: NextRequest) {
     try {
         await dbConnect();
-        const auth = await validateRequest(request) as AuthResult;
-        if (!auth.success) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
+        const auth = await validateRequest(request) as any;
+
+        if (!auth.success) {
+            if (auth.status === 403 || auth.error?.toLowerCase().includes("revoked")) {
+                return NextResponse.json({
+                    isEnrolled: false,
+                    isRevoked: true,
+                    accessType: null,
+                    paymentMethod: null
+                });
+            }
+            return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
+        }
 
         const url = new URL(request.url);
         const courseId = url.searchParams.get("courseId");
         if (!courseId) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
 
-        const enrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId, status: "active" });
+        const enrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
 
-        // ✅ Check what method they used before (wallet payment record exists?)
-        let prevPaymentMethod: "card" | "wallet" = "card"; // default stripe/card
-        if (enrollment) {
-            const walletPayment = await Payment.findOne({
-                user: auth.user.userId,
-                course: courseId,
+        if (!enrollment) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
+
+        if (enrollment.status === "revoked") {
+            return NextResponse.json({
+                isEnrolled: false,
+                isRevoked: true,
+                accessType: null,
+                paymentMethod: null,
             });
-            if (walletPayment) prevPaymentMethod = "wallet";
         }
 
+        const walletPayment = await Payment.findOne({ user: auth.user.userId, course: courseId });
+        const paymentMethod = walletPayment ? "wallet" : "card";
+
         return NextResponse.json({
-            isEnrolled: !!enrollment,
-            accessType: enrollment?.accessType ?? null,
-            paymentMethod: enrollment ? prevPaymentMethod : null, // ← "card" | "wallet"
+            isEnrolled: true,
+            accessType: enrollment.accessType ?? null,
+            paymentMethod,
         });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });

@@ -4,7 +4,6 @@ import { Star, PlayCircle, Tag, Lock, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ICourse } from "@/services/api";
-import { useState } from "react";
 
 export const CourseCard = ({
   _id,
@@ -12,27 +11,27 @@ export const CourseCard = ({
   instructor,
   instructorImage,
   image,
-  thumbnail,
+  thumbnail, // ✅ DB se thumbnail field
   lectures,
   price,
-  category,
+  category = "Tech",
   progress,
-  rating,
+  rating, // ✅ DB se rating field
 }: ICourse) => {
   const router = useRouter();
   const isFree = price === 10 || price === 0;
   const isEnrolled = typeof progress === "number";
 
-  // 🚀 FIX: Image Fallback State (To prevent infinite rendering loop)
-  const [imgError, setImgError] = useState(false);
-  const [instructorImgError, setInstructorImgError] = useState(false);
+  // ✅ thumbnail pehle, phir image (purani field fallback)
+  const displayImage = thumbnail || image || "/placeholder-course.jpg";
 
-  const displayImage = imgError
-    ? "/placeholder-course.jpg" // Ensure this file exists in your 'public' folder!
-    : thumbnail || image || "/placeholder-course.jpg";
-
+  // ✅ rating DB se aata hai string mein, number mein convert
   const displayRating = rating ? Number(rating).toFixed(1) : "4.9";
+
+  // ✅ lectures count — array ho ya kuch bhi
   const lectureCount = Array.isArray(lectures) ? lectures.length : 0;
+
+  // ✅ instructor name fallback
   const instructorName = instructor || "Instructor";
 
   return (
@@ -41,12 +40,12 @@ export const CourseCard = ({
       className="group relative cursor-pointer select-none h-full"
     >
       {/* Glow shadow on hover */}
-      <div className="absolute -inset-0.5 bg-linear-to-br from-blue-600/0 via-blue-500/0 to-indigo-500/0 group-hover:from-blue-600/20 group-hover:via-blue-500/10 group-hover:to-indigo-500/20 dark:group-hover:from-blue-500/30 dark:group-hover:via-blue-400/15 dark:group-hover:to-indigo-500/30 rounded-[28px] blur-xl transition-all duration-500 -z-10" />
+      <div className="absolute -inset-0.5 bg-gradient-to-br from-blue-600/0 via-blue-500/0 to-indigo-500/0 group-hover:from-blue-600/20 group-hover:via-blue-500/10 group-hover:to-indigo-500/20 dark:group-hover:from-blue-500/30 dark:group-hover:via-blue-400/15 dark:group-hover:to-indigo-500/30 rounded-[28px] blur-xl transition-all duration-500 -z-10" />
 
       <div className="relative bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[24px] overflow-hidden transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-[0_24px_48px_-8px_rgba(10,52,143,0.18)] dark:group-hover:shadow-[0_24px_48px_-8px_rgba(59,130,246,0.15)] flex flex-col h-full">
         {/* ── IMAGE ── */}
         <div
-          className="relative overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-800"
+          className="relative overflow-hidden shrink-0"
           style={{ aspectRatio: "16/10" }}
         >
           <Image
@@ -55,20 +54,19 @@ export const CourseCard = ({
             fill
             sizes="(max-width: 768px) 100vw, 400px"
             className="object-cover transition-all duration-700 group-hover:scale-110"
-            onError={() => {
-              // 🚀 FIX: Ab yahan loop nahi banega
-              setImgError(true);
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "/placeholder-course.jpg";
             }}
           />
 
           {/* Dark gradient overlay */}
-          <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
 
           {/* Category pill — top left */}
           <div className="absolute top-3 left-3">
             <span className="inline-flex items-center gap-1 bg-white/15 dark:bg-white/10 backdrop-blur-md border border-white/20 text-white px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
               <Tag size={9} className="fill-white" />
-              {category || "Course"}
+              {category}
             </span>
           </div>
 
@@ -98,21 +96,29 @@ export const CourseCard = ({
         <div className="p-5 flex flex-col grow">
           {/* Instructor */}
           <div className="flex items-center gap-2 mb-3">
-            {instructorImage && !instructorImgError ? (
+            {instructorImage ? (
               <img
                 src={instructorImage}
                 alt={instructorName}
-                className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
-                onError={() => setInstructorImgError(true)} // 🚀 FIX
+                className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700 flex-shrink-0"
+                onError={(e) => {
+                  // ✅ Image load fail hone pe fallback icon
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                  (e.currentTarget
+                    .nextElementSibling as HTMLElement)!.style.display = "flex";
+                }}
               />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-                <GraduationCap
-                  size={12}
-                  className="text-[#0a348f] dark:text-blue-400"
-                />
-              </div>
-            )}
+            ) : null}
+            {/* Fallback icon — shows if no image or image fails */}
+            <div
+              className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 items-center justify-center flex-shrink-0"
+              style={{ display: instructorImage ? "none" : "flex" }}
+            >
+              <GraduationCap
+                size={12}
+                className="text-[#0a348f] dark:text-blue-400"
+              />
+            </div>
 
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate transition-colors duration-300">
               {instructorName}
@@ -137,7 +143,7 @@ export const CourseCard = ({
               </div>
               <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden transition-colors duration-300">
                 <div
-                  className="h-full bg-linear-to-r from-[#0a348f] to-blue-400 dark:from-blue-600 dark:to-blue-400 rounded-full transition-all duration-1000"
+                  className="h-full bg-gradient-to-r from-[#0a348f] to-blue-400 dark:from-blue-600 dark:to-blue-400 rounded-full transition-all duration-1000"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -185,7 +191,7 @@ export const CourseCard = ({
         </div>
 
         {/* Bottom shimmer line on hover */}
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-blue-600 via-indigo-500 to-blue-400 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-400 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
       </div>
     </div>
   );

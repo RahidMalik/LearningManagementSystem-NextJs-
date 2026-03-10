@@ -62,11 +62,13 @@ export default function AdminStats() {
 
       // ── 2. Students ──
       try {
-        const sRes: any = await api.getAllStudents(1, 10);
+        const sRes: any = await api.getAllStudents(1, 100);
         const total =
-          sRes?.data?.totalStudents ??
+          sRes?.data?.totalStudents ?? // ✅ controller returns this
+          sRes?.data?.total ??
           sRes?.totalStudents ??
-          sRes?.data?.data?.length ??
+          sRes?.data?.data?.length ?? // fallback: count array
+          sRes?.data?.length ??
           0;
         setStudents(total);
       } catch {
@@ -117,7 +119,7 @@ export default function AdminStats() {
             className={`relative border ${stat.border} rounded-3xl p-6 shadow-sm ${stat.shadow} overflow-hidden group hover:-translate-y-1 transition-all duration-300`}
           >
             <div
-              className={`absolute -top-6 -right-6 w-24 h-24 rounded-full bg-linear-to-br ${stat.gradient} opacity-[0.07] group-hover:opacity-[0.12] transition-opacity duration-300`}
+              className={`absolute -top-6 -right-6 w-24 h-24 rounded-full bg-gradient-to-br ${stat.gradient} opacity-[0.07] group-hover:opacity-[0.12] transition-opacity duration-300`}
             />
             <div className="relative">
               <div className="flex items-start justify-between mb-4">
@@ -156,7 +158,7 @@ export default function AdminStats() {
               </p>
               <div className="mt-4 h-1 bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                 <div
-                  className={`h-full bg-linear-to-r ${stat.gradient} rounded-full transition-all duration-700`}
+                  className={`h-full bg-gradient-to-r ${stat.gradient} rounded-full transition-all duration-700`}
                   style={{ width: loading ? "0%" : stat.barWidth }}
                 />
               </div>

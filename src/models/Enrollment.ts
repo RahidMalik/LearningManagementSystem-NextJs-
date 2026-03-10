@@ -6,7 +6,7 @@ export interface IEnrollment extends Document {
     progress: number;
     enrolledAt: Date;
     accessType: "half" | "full";
-    status: "active" | "completed";
+    status: "active" | "completed" | "revoked";
 }
 
 const EnrollmentSchema = new Schema<IEnrollment>({
@@ -15,7 +15,7 @@ const EnrollmentSchema = new Schema<IEnrollment>({
     progress: { type: Number, default: 0 },
     enrolledAt: { type: Date, default: Date.now },
     accessType: { type: String, enum: ["half", "full"], default: "full" },
-    status: { type: String, enum: ["active", "completed"], default: "active" },
+    status: { type: String, enum: ["active", "completed", "revoked"], default: "active" },
 });
 
 EnrollmentSchema.index({ user: 1, course: 1 }, { unique: true });

@@ -188,9 +188,9 @@ export const api = {
             method: "GET"
         })
     },
-    toggleStudentAccess: async (userId: string, status: string) => {
+    toggleStudentAccess: async (userId: string, status: "active" | "revoked"): Promise<ApiResponse<any>> => {
         return await apiClient.request("/admin/students/toggle-access", {
-            method: "PUT",
+            method: "POST",
             data: { userId, status },
         });
     },
@@ -251,16 +251,28 @@ export const api = {
             data: { courseId, accessType },
         });
     },
+    updateProgress: async (courseId: string, progress: number) => {
+        return await apiClient.request("/courses/update-progress", {
+            method: "POST",
+            data: { courseId, progress },
+        });
+    },
     checkEnrollment: async (courseId: string): Promise<{
         success: boolean;
         isEnrolled: boolean;
         accessType: "half" | "full" | null;
-        paymentMethod: "card" | "wallet" | null;  // ← ADD
+        paymentMethod: "card" | "wallet" | null;
+        isRevoked?: boolean; // 🚀 Naya property add ki
     }> => {
         try {
             const res = await apiClient.request(`/courses/check-enrollment?courseId=${courseId}`);
             const data = (res?.data ?? res) as any;
             const inner = data?.data ?? data;
+
+            // 🚀 Agar backend ne error + isRevoked bheja ho
+            if (inner?.isRevoked) {
+                return { success: false, isEnrolled: false, accessType: null, paymentMethod: null, isRevoked: true };
+            }
 
             const isEnrolled = inner?.isEnrolled === true;
             const accessType: "half" | "full" | null =
@@ -271,10 +283,13 @@ export const api = {
             const paymentMethod: "card" | "wallet" | null =
                 inner?.paymentMethod === "wallet" ? "wallet" :
                     inner?.paymentMethod === "card" ? "card" :
-                        isEnrolled ? "card" : null;   // default card
+                        isEnrolled ? "card" : null;
 
             return { success: true, isEnrolled, accessType, paymentMethod };
-        } catch {
+        } catch (error: any) {
+            if (error?.response?.status === 403 || error?.status === 403) {
+                return { success: false, isEnrolled: false, accessType: null, paymentMethod: null, isRevoked: true };
+            }
             return { success: false, isEnrolled: false, accessType: null, paymentMethod: null };
         }
     },

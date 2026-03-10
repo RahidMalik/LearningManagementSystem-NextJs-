@@ -104,7 +104,7 @@ export const Login = async (req: Request) => {
         }
 
         // 3. Compare Password
-        const isMatch = await bcrypt.compare(password, user.password);
+        const isMatch = await bcrypt.compare(password, user.password as string);
         if (!isMatch) {
             return NextResponse.json({ error: "Invalid credentials (Wrong password)" }, { status: 401 });
         }

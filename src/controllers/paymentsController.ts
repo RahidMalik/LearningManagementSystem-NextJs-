@@ -7,7 +7,7 @@ import { Enrollment } from "@/models/Enrollment";
 import mongoose from "mongoose";
 import { Payment } from "@/models/Payment";
 import cloudinary from "@/configs/cloudinary";
-import { sendPaymentApprovedEmail, sendPaymentRejectedEmail } from "@/app/api/mail/payments/emailService/route";
+import { sendPaymentApprovedEmail, sendPaymentRejectedEmail, sendPaymentPendingEmail } from "@/app/api/mail/payments/emailService/route";
 
 interface AuthResult {
     success: boolean;
@@ -17,77 +17,53 @@ interface AuthResult {
 
 // ─────────────────────────────────────────────
 // CREATE PAYMENT INTENT
-// now accepts accessType — "half" charges 50%
 // ─────────────────────────────────────────────
 export async function PaymentIntentCreate(request: NextRequest) {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
     try {
         await dbConnect();
-
         const auth = await validateRequest(request) as AuthResult;
-        if (!auth.success) {
-            return NextResponse.json({ error: auth.error }, { status: 401 });
-        }
+        if (!auth.success) return NextResponse.json({ error: auth.error }, { status: 401 });
 
         const { courseId, accessType = "full" } = await request.json();
-
-        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId))
             return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
-        }
 
-        // Check already enrolled
-        const existingEnrollment = await Enrollment.findOne({
-            user: auth.user.userId,
-            course: courseId,
-        });
+        const existingEnrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
 
         if (existingEnrollment) {
-            // ── If half-paid and now wants full, allow upgrade ──
             if (existingEnrollment.accessType === "half" && accessType === "full") {
-                // Allow — they're paying the remaining half
+                // upgrade allowed — continue
             } else {
-                return NextResponse.json({
-                    success: false,
-                    error: "You are already enrolled in this course.",
-                    alreadyEnrolled: true,
-                }, { status: 400 });
+                return NextResponse.json({ success: false, error: "You are already enrolled in this course.", alreadyEnrolled: true }, { status: 400 });
             }
         }
 
         const course = await Course.findById(courseId);
-        if (!course) {
-            return NextResponse.json({ error: "Course not found" }, { status: 404 });
-        }
+        if (!course) return NextResponse.json({ error: "Course not found" }, { status: 404 });
 
         const discount = course.discount || 0;
         const fullPrice = Math.round(course.price - (course.price * discount) / 100);
 
-        // ── Half payment = 50% of final price ──
-        const chargeAmount = accessType === "half"
-            ? Math.round(fullPrice / 2)
-            : fullPrice;
-
-        const amountInPaisa = chargeAmount * 100;
+        let chargeAmount: number;
+        if (existingEnrollment?.accessType === "half" && accessType === "full") {
+            chargeAmount = Math.round(fullPrice / 2); // upgrade: remaining half
+        } else if (accessType === "half") {
+            chargeAmount = Math.round(fullPrice / 2); // new half
+        } else {
+            chargeAmount = fullPrice;                 // new full
+        }
 
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: amountInPaisa,
+            amount: chargeAmount * 100,
             currency: "pkr",
-            metadata: {
-                courseId,
-                userId: auth.user.userId,
-                courseName: course.title,
-                accessType,                 // ← stored in Stripe metadata
-            },
+            metadata: { courseId, userId: auth.user.userId, courseName: course.title, accessType },
         });
 
         return NextResponse.json({
-            success: true,
-            clientSecret: paymentIntent.client_secret,
-            amount: chargeAmount,
-            fullAmount: fullPrice,        // frontend can show remaining balance
-            accessType,
+            success: true, clientSecret: paymentIntent.client_secret,
+            amount: chargeAmount, fullAmount: fullPrice, accessType,
         });
-
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -95,100 +71,80 @@ export async function PaymentIntentCreate(request: NextRequest) {
 
 // ─────────────────────────────────────────────
 // ENROLL IN COURSE
-// stores accessType in Enrollment document
-// if upgrading half → full, update existing record
 // ─────────────────────────────────────────────
 export async function EnrollInCourse(request: NextRequest) {
     try {
         await dbConnect();
-
         const auth = await validateRequest(request) as AuthResult;
-        if (!auth.success) {
-            return NextResponse.json({ error: auth.error }, { status: 401 });
-        }
+        if (!auth.success) return NextResponse.json({ error: auth.error }, { status: 401 });
 
         const { courseId, accessType = "full" } = await request.json();
-
-        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId))
             return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
-        }
 
-        const existingEnrollment = await Enrollment.findOne({
-            user: auth.user.userId,
-            course: courseId,
-        });
+        const existingEnrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
 
         if (existingEnrollment) {
-            // ── Upgrade: half → full ──
             if (existingEnrollment.accessType === "half" && accessType === "full") {
                 existingEnrollment.accessType = "full";
                 await existingEnrollment.save();
-                return NextResponse.json({
-                    success: true,
-                    upgraded: true,
-                    accessType: "full",
-                    message: "Access upgraded to full!",
-                });
+                return NextResponse.json({ success: true, upgraded: true, accessType: "full", message: "Access upgraded to full!" });
             }
-            return NextResponse.json({
-                success: false,
-                error: "Already enrolled",
-            }, { status: 400 });
+            return NextResponse.json({ success: false, error: "Already enrolled" }, { status: 400 });
         }
 
-        // ── New enrollment ──
         const enrollment = await Enrollment.create({
-            user: auth.user.userId,
-            course: courseId,
-            accessType,
-            status: "active",
-            progress: 0,
+            user: auth.user.userId, course: courseId,
+            accessType, status: "active", progress: 0,
         });
 
         return NextResponse.json({ success: true, enrollment, accessType });
-
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 
 // ─────────────────────────────────────────────
-// CHECK ENROLLMENT — returns accessType too
+// CHECK ENROLLMENT
 // ─────────────────────────────────────────────
 export async function CheckEnrollment(request: NextRequest) {
     try {
         await dbConnect();
-
         const auth = await validateRequest(request) as AuthResult;
-        if (!auth.success) {
-            return NextResponse.json({ isEnrolled: false, accessType: null });
-        }
+        if (!auth.success) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
 
         const url = new URL(request.url);
         const courseId = url.searchParams.get("courseId");
+        if (!courseId) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
 
-        if (!courseId) {
-            return NextResponse.json({ isEnrolled: false, accessType: null });
+        const enrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
+
+        if (!enrollment) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
+
+        if (enrollment.status === "revoked") {
+            return NextResponse.json({
+                isEnrolled: false,
+                isRevoked: true,
+                accessType: null,
+                paymentMethod: null,
+            });
         }
 
-        const enrollment = await Enrollment.findOne({
-            user: auth.user.userId,
-            course: courseId,
-            status: "active",
-        });
+        const walletPayment = await Payment.findOne({ user: auth.user.userId, course: courseId });
+        const paymentMethod = walletPayment ? "wallet" : "card";
 
         return NextResponse.json({
-            isEnrolled: !!enrollment,
-            accessType: enrollment?.accessType ?? null,   // "half" | "full" | null
+            isEnrolled: true,
+            accessType: enrollment.accessType ?? null,
+            paymentMethod,
         });
-
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 
 // ─────────────────────────────────────────────
-// WALLET VERIFICATION (unchanged)
+// WALLET VERIFICATION
 // ─────────────────────────────────────────────
 export async function WalletVerification(req: Request) {
     try {
@@ -196,9 +152,7 @@ export async function WalletVerification(req: Request) {
         const body = await req.json();
         const { courseId, method, phone, amount, userId, image } = body;
 
-        if (!image) {
-            return NextResponse.json({ success: false, message: "Payment screenshot is required." }, { status: 400 });
-        }
+        if (!image) return NextResponse.json({ success: false, message: "Payment screenshot is required." }, { status: 400 });
 
         const uploadResponse = await cloudinary.uploader.upload(image, { folder: "lms_slips" });
         const receiptUrl = uploadResponse.secure_url;
@@ -209,50 +163,52 @@ export async function WalletVerification(req: Request) {
             receiptUrl, status: "pending",
         });
 
-        return NextResponse.json({ success: true, message: "Slip uploaded & submitted successfully!", data: payment });
+        // ✅ Send pending email
+        try {
+            const User = (await import("@/models/User")).User;
+            const Course = (await import("@/models/Course")).Course;
+            const userDoc = await User.findById(userId).select("name email");
+            const courseDoc = await Course.findById(courseId).select("title");
+            if (userDoc?.email && courseDoc?.title) {
+                await sendPaymentPendingEmail({
+                    toEmail: userDoc.email,
+                    userName: userDoc.name || "Student",
+                    courseName: courseDoc.title,
+                    amount: Number(amount),
+                    method: method,
+                });
+            }
+        } catch (emailErr) { console.error("Pending email failed:", emailErr); }
 
+        return NextResponse.json({ success: true, message: "Slip uploaded & submitted successfully!", data: payment });
     } catch (error: any) {
         return NextResponse.json({ success: false, message: error.message || "Internal Server Error" }, { status: 500 });
     }
 }
 
 // ─────────────────────────────────────────────
-// ADMIN REVENUE (unchanged)
+// ADMIN REVENUE
 // ─────────────────────────────────────────────
 export const getAdminRevenue = async (req: Request) => {
     try {
         await dbConnect();
         const authResult = await validateRequest(req);
-        if (!authResult.success || !authResult.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        if (!authResult.success || !authResult.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const walletPayments = await Payment.find({ status: "approved" });
         const walletRevenue = walletPayments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
         const walletPairs = walletPayments.map((p: any) => `${p.user?.toString()}_${p.course?.toString()}`);
-
         const allEnrollments = await Enrollment.find({ status: "active" }).populate("course", "price");
-        const stripeEnrollments = allEnrollments.filter((e: any) => {
-            const pair = `${e.user?.toString()}_${e.course?.toString()}`;
-            return !walletPairs.includes(pair);
-        });
-
-        // ── For half-access: count only the charged amount (half price) ──
+        const stripeEnrollments = allEnrollments.filter((e: any) => !walletPairs.includes(`${e.user?.toString()}_${e.course?.toString()}`));
         const stripeRevenue = stripeEnrollments.reduce((sum: number, e: any) => {
             const price = Number(e.course?.price) || 0;
             return sum + (e.accessType === "half" ? Math.round(price / 2) : price);
         }, 0);
 
         return NextResponse.json({
-            success: true,
-            totalRevenue: walletRevenue + stripeRevenue,
-            breakdown: {
-                wallet: walletRevenue, stripe: stripeRevenue,
-                walletCount: walletPayments.length,
-                stripeCount: stripeEnrollments.length,
-            },
+            success: true, totalRevenue: walletRevenue + stripeRevenue,
+            breakdown: { wallet: walletRevenue, stripe: stripeRevenue, walletCount: walletPayments.length, stripeCount: stripeEnrollments.length },
         });
-
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -262,14 +218,11 @@ export const getCoursesState = async (req: Request) => {
     try {
         await dbConnect();
         const authResult = await validateRequest(req);
-        if (!authResult.success || !authResult.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        if (!authResult.success || !authResult.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const enrollments = await Enrollment.find({ status: "active" }).populate("course", "price title");
         const walletPayments = await Payment.find({ status: "approved" }).lean();
         const walletPairs = walletPayments.map((p: any) => `${p.user?.toString()}_${p.course?.toString()}`);
-
         const stateMap: Record<string, { students: number; revenue: number }> = {};
 
         enrollments.forEach((e: any) => {
@@ -277,7 +230,6 @@ export const getCoursesState = async (req: Request) => {
             if (!courseId) return;
             if (!stateMap[courseId]) stateMap[courseId] = { students: 0, revenue: 0 };
             stateMap[courseId].students += 1;
-
             const pair = `${e.user?.toString()}_${courseId}`;
             if (!walletPairs.includes(pair)) {
                 const price = Number(e.course?.price) || 0;
@@ -293,11 +245,11 @@ export const getCoursesState = async (req: Request) => {
         });
 
         return NextResponse.json({ success: true, stats: stateMap });
-
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
+
 // ─────────────────────────────────────────────
 // GET ALL WALLET PAYMENTS (Admin)
 // ─────────────────────────────────────────────
@@ -308,6 +260,7 @@ export async function GetAdminWalletPayments(request: NextRequest) {
         if (!auth.success || auth.user?.role !== "admin")
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+        // ✅ FIX: await was missing — was returning a Query object not data
         const payments = await Payment.find({})
             .populate("user", "name email")
             .populate("course", "title price")
@@ -340,7 +293,7 @@ export async function ApproveWalletPayment(request: NextRequest) {
 
         const accessType = (payment as any).accessType || "full";
 
-        //  Check FIRST — before touching payment status
+        // ✅ Check FIRST — before touching payment status
         const existing = await Enrollment.findOne({ user: payment.user, course: payment.course });
 
         if (existing && existing.accessType === "full") {
@@ -352,7 +305,7 @@ export async function ApproveWalletPayment(request: NextRequest) {
             });
         }
 
-        // Only now mark approved
+        // ✅ Only now mark approved
         payment.status = "approved";
         await payment.save();
 
@@ -371,7 +324,7 @@ export async function ApproveWalletPayment(request: NextRequest) {
             });
         }
 
-        // Send approval email
+        // ✅ Send approval email
         try {
             const populatedPayment = await Payment.findById(paymentId)
                 .populate("user", "name email")
@@ -412,7 +365,7 @@ export async function RejectWalletPayment(request: NextRequest) {
         const payment = await Payment.findByIdAndUpdate(paymentId, { status: "rejected" }, { new: true });
         if (!payment) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
 
-        // Send rejection email
+        // ✅ Send rejection email
         try {
             const pop = await Payment.findById(paymentId)
                 .populate("user", "name email")

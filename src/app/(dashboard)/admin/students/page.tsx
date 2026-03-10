@@ -41,20 +41,27 @@ export default function AdminStudents() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "revoked">("all");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
 
   // ── Fetch students ──
   useEffect(() => {
     const fetch = async () => {
       try {
-        const res: any = await api.getAllStudents(1, 10);
-        const raw =
-          res?.data?.data ||
-          res?.data?.students ||
-          res?.students ||
-          res?.data ||
-          [];
-        const data = Array.isArray(raw) ? raw : [];
-        setStudents(data);
+        const res: any = await api.getAllStudents(1, 100);
+
+        // 🚀 FIX: Safely parse the backend response
+        const backendData =
+          res.data && !Array.isArray(res.data) ? res.data : res;
+        const studentsList = Array.isArray(backendData.data)
+          ? backendData.data
+          : Array.isArray(backendData)
+            ? backendData
+            : [];
+        const total =
+          backendData.totalStudents ?? backendData.total ?? studentsList.length;
+
+        setStudents(studentsList);
+        setTotalCount(total);
       } catch {
         toast.error("Failed to fetch students");
       } finally {
@@ -66,31 +73,43 @@ export default function AdminStudents() {
 
   // ── Toggle access — needs backend endpoint ──
   const toggleAccess = async (id: string, currentStatus: string) => {
-    try {
-      const newStatus = currentStatus === "active" ? "revoked" : "active";
-      await api.toggleStudentAccess(id, newStatus);
-      setStudents((prev) =>
-        prev.map((s) => (s._id === id ? { ...s, status: newStatus } : s)),
-      );
-      toast.success(
-        newStatus === "active" ? "Access granted!" : "Access revoked!",
-      );
-    } catch {
-      setStudents((prev) =>
-        prev.map((s) =>
-          s._id === id
-            ? { ...s, status: s.status === "active" ? "revoked" : "active" }
-            : s,
-        ),
-      );
-    }
+    const newStatus = currentStatus === "active" ? "revoked" : "active";
+
+    // Optimistic UI update
+    setStudents((prev) =>
+      prev.map((s) => (s._id === id ? { ...s, status: newStatus } : s)),
+    );
     setOpenMenu(null);
+
+    try {
+      const res = await (api as any).toggleStudentAccess(id, newStatus);
+
+      // 🚀 FIX: Agar backend se success false aaya hai, toh revert karo aur error dikhao
+      if (!res.success) {
+        throw new Error(res.error || "Failed to update access");
+      }
+
+      toast.success(
+        newStatus === "active" ? "✅ Access granted!" : "🚫 Access revoked!",
+      );
+    } catch (err: any) {
+      console.error("Toggle API failed:", err);
+      setStudents((prev) =>
+        prev.map((s) => (s._id === id ? { ...s, status: currentStatus } : s)),
+      );
+      toast.error(err?.message || "Failed to update access — check API route");
+    }
   };
 
   const filtered = students.filter((s) => {
-    const matchSearch =
-      s.name?.toLowerCase().includes(search.toLowerCase()) ||
-      s.email?.toLowerCase().includes(search.toLowerCase());
+    const nameMatch = (s.name || "")
+      .toLowerCase()
+      .includes(search.toLowerCase());
+    const emailMatch = (s.email || "")
+      .toLowerCase()
+      .includes(search.toLowerCase());
+    const matchSearch = nameMatch || emailMatch;
+
     const matchFilter = filter === "all" || (s.status || "active") === filter;
     return matchSearch && matchFilter;
   });
@@ -119,7 +138,7 @@ export default function AdminStudents() {
                 </h1>
               </div>
               <p className="text-xs text-slate-400 dark:text-zinc-500 font-medium mt-0.5">
-                {loading ? "Loading..." : `${students.length} total enrolled`}
+                {loading ? "Loading..." : `${totalCount} total enrolled`}
               </p>
             </div>
             <div className="relative flex items-center">
@@ -143,7 +162,7 @@ export default function AdminStudents() {
             {[
               {
                 label: "Total",
-                value: students.length,
+                value: totalCount,
                 icon: Users,
                 color: "text-[#0a348f] dark:text-blue-400",
                 bg: "bg-blue-50 dark:bg-blue-500/10",
@@ -250,7 +269,11 @@ export default function AdminStudents() {
                         .join("")
                         .toUpperCase()
                         .slice(0, 2) || "ST";
-                    const courses = student.courseCount || 0;
+                    const courses =
+                      student.enrolledCourses?.length ||
+                      student.courses?.length ||
+                      student.courseCount ||
+                      0;
                     const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
 
                     return (
@@ -265,7 +288,7 @@ export default function AdminStudents() {
                         {/* ── Mobile ── */}
                         <div className="flex items-center gap-3 md:hidden">
                           <div
-                            className={`w-10 h-10 rounded-2xl bg-linear-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
+                            className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
                           >
                             {student.photoURL ? (
                               <img
@@ -328,7 +351,7 @@ export default function AdminStudents() {
                           {/* Student info */}
                           <div className="flex items-center gap-3 min-w-0">
                             <div
-                              className={`w-9 h-9 rounded-2xl bg-linear-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
+                              className={`w-9 h-9 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
                             >
                               {student.photoURL ? (
                                 <img
@@ -402,41 +425,33 @@ export default function AdminStudents() {
                             </button>
                             <AnimatePresence>
                               {openMenu === student._id && (
-                                <>
-                                  {/* Backdrop */}
-                                  <div
-                                    className="fixed inset-0 z-40"
-                                    onClick={() => setOpenMenu(null)}
-                                  />
-
-                                  <motion.div
-                                    initial={{ opacity: 0, scale: 0.9, x: 10 }}
-                                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                                    exit={{ opacity: 0, scale: 0.9, x: 10 }}
-                                    className="absolute right-8 top-0 z-50 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden w-40"
+                                <motion.div
+                                  initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                                  className="absolute right-8 -top-1 z-50 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden w-40"
+                                >
+                                  <button
+                                    onClick={() =>
+                                      toggleAccess(student._id, status)
+                                    }
+                                    className={`w-full flex items-center gap-2 px-4 py-3 text-xs font-black transition-all hover:bg-slate-50 dark:hover:bg-zinc-700 ${
+                                      status === "active"
+                                        ? "text-red-500"
+                                        : "text-emerald-600 dark:text-emerald-400"
+                                    }`}
                                   >
-                                    <button
-                                      onClick={() =>
-                                        toggleAccess(student._id, status)
-                                      }
-                                      className={`w-full flex items-center gap-2 px-4 py-3 text-xs font-black transition-all hover:bg-slate-50 dark:hover:bg-zinc-700 ${
-                                        status === "active"
-                                          ? "text-red-500"
-                                          : "text-emerald-600 dark:text-emerald-400"
-                                      }`}
-                                    >
-                                      {status === "active" ? (
-                                        <>
-                                          <ShieldOff size={13} /> Revoke Access
-                                        </>
-                                      ) : (
-                                        <>
-                                          <ShieldCheck size={13} /> Grant Access
-                                        </>
-                                      )}
-                                    </button>
-                                  </motion.div>
-                                </>
+                                    {status === "active" ? (
+                                      <>
+                                        <ShieldOff size={13} /> Revoke Access
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ShieldCheck size={13} /> Grant Access
+                                      </>
+                                    )}
+                                  </button>
+                                </motion.div>
                               )}
                             </AnimatePresence>
                           </div>

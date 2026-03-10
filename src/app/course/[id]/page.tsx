@@ -95,6 +95,17 @@ export default function CourseDetailPage() {
         }
 
         if (courseRes.success) setCourse(courseRes.data ?? null);
+
+        // ✅ Revoked check — from enrollment response directly
+        if (
+          (enrollRes as any)?.isRevoked === true ||
+          (enrollRes as any)?.error?.toLowerCase().includes("revoked")
+        ) {
+          setIsRevoked(true);
+          setLoading(false);
+          return;
+        }
+
         const enrolled = enrollRes.isEnrolled === true;
         setIsEnrolled(enrolled);
 
@@ -106,9 +117,8 @@ export default function CourseDetailPage() {
               ? "full"
               : enrolled
                 ? "full"
-                : null; // fallback: enrolled but no field = full
+                : null;
         setAccessType(resolvedAccess);
-        console.log("🎫 Enrollment:", { enrolled, rawAccess, resolvedAccess });
 
         try {
           const saved = localStorage.getItem(`completed_${id}`);
@@ -138,10 +148,11 @@ export default function CourseDetailPage() {
       : [];
 
   // ── Half access = first 50% only ──
-
   const halfCount = Math.ceil(allLectures.length / 2);
   const lecturesList =
-    accessType === "half" ? allLectures.slice(0, halfCount) : allLectures;
+    accessType === "half"
+      ? allLectures.slice(0, halfCount) // ✅ strict slice — no way to bypass
+      : allLectures;
 
   // Lectures locked because of half-access (shown greyed with upgrade CTA)
   const lockedLectures =
@@ -165,10 +176,20 @@ export default function CourseDetailPage() {
       try {
         localStorage.setItem(`completed_${id}`, JSON.stringify([...updated]));
       } catch {}
+
+      // ✅ Save progress to DB
+      const totalLectures = allLectures.length;
+      if (totalLectures > 0) {
+        const progressPercent = Math.round(
+          (updated.size / totalLectures) * 100,
+        );
+        api.updateProgress(id, progressPercent).catch(() => {});
+      }
+
       return updated;
     });
-    toast.success("Lecture complete! Next lecture unlocked");
-  }, [id]);
+    toast.success("Lecture complete! Next lecture unlocked 🎉");
+  }, [id, allLectures.length]);
 
   const handleVideoPlay = useCallback(() => {
     setCanSkip(completedRef.current.has(activeIndexRef.current));
@@ -180,6 +201,7 @@ export default function CourseDetailPage() {
       return;
     }
 
+    // ✅ Half-access guard — idx >= halfCount means beyond allowed range
     if (accessType === "half" && idx >= Math.ceil(allLectures.length / 2)) {
       toast.error(
         "You have half payment — pay full payment then you can watch this lecture!",
@@ -393,7 +415,7 @@ export default function CourseDetailPage() {
 
           {/* Half-access upgrade banner */}
           {isEnrolled && accessType === "half" && (
-            <div className="bg-linear-to-r from-amber-500 to-orange-500 px-4 py-3 flex items-center justify-between gap-3">
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Lock size={14} className="text-white shrink-0" />
                 <p className="text-xs font-bold text-white">
