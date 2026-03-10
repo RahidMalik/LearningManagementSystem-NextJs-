@@ -19,9 +19,9 @@ import {
   Lock,
   Play,
   ListVideo,
-  ShieldOff,
-  AlertTriangle,
   Unlock,
+  MessageSquare,
+  Trash2,
 } from "lucide-react";
 import Image from "next/image";
 import { api } from "@/services/api";
@@ -47,14 +47,19 @@ export interface CourseDetailData {
   language?: string;
 }
 
+interface IReview {
+  _id: string;
+  user: { name: string; photoURL?: string };
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
 export default function CourseDetailPage() {
   const [course, setCourse] = useState<CourseDetailData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userRating, setUserRating] = useState(0);
-  const [reviewText, setReviewText] = useState("");
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [accessType, setAccessType] = useState<"half" | "full" | null>(null);
-  const [isRevoked, setIsRevoked] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -62,6 +67,16 @@ export default function CourseDetailPage() {
     new Set(),
   );
   const [canSkip, setCanSkip] = useState(false);
+
+  // ── Reviews state ──
+  const [reviews, setReviews] = useState<IReview[]>([]);
+  const [avgRating, setAvgRating] = useState(0);
+  const [userRating, setUserRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingReview, setDeletingReview] = useState(false);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [myReview, setMyReview] = useState<IReview | null>(null);
 
   const activeIndexRef = useRef(0);
   const completedRef = useRef<Set<number>>(new Set());
@@ -76,6 +91,7 @@ export default function CourseDetailPage() {
   const router = useRouter();
   const id = params.id as string;
 
+  // ── Fetch course + enrollment + reviews ──
   useEffect(() => {
     const fetchCourseData = async () => {
       try {
@@ -85,26 +101,7 @@ export default function CourseDetailPage() {
           api.checkEnrollment(id),
         ]);
 
-        if (!courseRes.success) {
-          const msg = (courseRes as any)?.error || "";
-          if (msg.toLowerCase().includes("revoked")) {
-            setIsRevoked(true);
-            setLoading(false);
-            return;
-          }
-        }
-
         if (courseRes.success) setCourse(courseRes.data ?? null);
-
-        // ✅ Revoked check — from enrollment response directly
-        if (
-          (enrollRes as any)?.isRevoked === true ||
-          (enrollRes as any)?.error?.toLowerCase().includes("revoked")
-        ) {
-          setIsRevoked(true);
-          setLoading(false);
-          return;
-        }
 
         const enrolled = enrollRes.isEnrolled === true;
         setIsEnrolled(enrolled);
@@ -124,37 +121,108 @@ export default function CourseDetailPage() {
           const saved = localStorage.getItem(`completed_${id}`);
           if (saved) setCompletedVideos(new Set(JSON.parse(saved)));
         } catch {}
-      } catch (error: any) {
-        if (
-          error?.status === 403 ||
-          error?.message?.toLowerCase().includes("revoked")
-        ) {
-          setIsRevoked(true);
-        } else {
-          toast.error("Failed to load course details");
-        }
+      } catch {
+        toast.error("Failed to load course details");
       } finally {
         setLoading(false);
       }
     };
-    if (id) fetchCourseData();
+    if (id) {
+      fetchCourseData();
+      fetchReviews();
+    }
   }, [id]);
 
-  // ── All lectures from backend ──
+  // ── Fetch reviews ──
+  const fetchReviews = useCallback(async () => {
+    setReviewsLoading(true);
+    try {
+      const res = await api.getReviews(id);
+      const data: any = res?.data ?? res;
+      if (data?.reviews) {
+        setReviews(data.reviews);
+        setAvgRating(Math.round(data.avgRating ?? 0));
+        const token = localStorage.getItem("token");
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split(".")[1]));
+            const mine = data.reviews.find(
+              (r: IReview) =>
+                (r.user as any)?._id?.toString() === payload.userId,
+            );
+            if (mine) {
+              setMyReview(mine);
+              setUserRating(mine.rating);
+              setReviewText(mine.comment);
+            }
+          } catch {}
+        }
+      }
+    } catch {
+    } finally {
+      setReviewsLoading(false);
+    }
+  }, [id]);
+
+  // ── Submit review ──
+  const handleSubmitReview = async () => {
+    if (!userRating) return toast.error("Please select a rating!");
+    if (!reviewText.trim()) return toast.error("Please write a review!");
+    if (!isEnrolled) return toast.error("Enroll first to leave a review!");
+
+    setSubmitting(true);
+    try {
+      const res = await api.submitReview(id, {
+        rating: userRating,
+        comment: reviewText.trim(),
+      });
+      if ((res as any)?.success || (res as any)?.review) {
+        toast.success(myReview ? "Review updated! ✨" : "Review submitted! ✨");
+        fetchReviews();
+      } else {
+        toast.error((res as any)?.error || "Failed to submit review");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Delete own review ──
+  const handleDeleteReview = async () => {
+    if (!myReview) return;
+    if (!confirm("Delete your review?")) return;
+    setDeletingReview(true);
+    try {
+      const res = await api.deleteOwnReview(id, myReview._id);
+      const data: any = (res as any)?.data ?? res;
+      if (data?.success) {
+        toast.success("Review deleted");
+        setMyReview(null);
+        setUserRating(0);
+        setReviewText("");
+        fetchReviews();
+      } else {
+        toast.error(data.error || "Failed to delete");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setDeletingReview(false);
+    }
+  };
+
+  // ── Lecture helpers ──
   const allLectures = course?.lectures?.length
     ? course.lectures
     : course?.videoUrl
       ? [{ _id: "main", title: "Main Course Video", videoUrl: course.videoUrl }]
       : [];
 
-  // ── Half access = first 50% only ──
   const halfCount = Math.ceil(allLectures.length / 2);
   const lecturesList =
-    accessType === "half"
-      ? allLectures.slice(0, halfCount) // ✅ strict slice — no way to bypass
-      : allLectures;
-
-  // Lectures locked because of half-access (shown greyed with upgrade CTA)
+    accessType === "half" ? allLectures.slice(0, halfCount) : allLectures;
   const lockedLectures =
     accessType === "half" ? allLectures.slice(halfCount) : [];
 
@@ -176,16 +244,11 @@ export default function CourseDetailPage() {
       try {
         localStorage.setItem(`completed_${id}`, JSON.stringify([...updated]));
       } catch {}
-
-      // ✅ Save progress to DB
       const totalLectures = allLectures.length;
       if (totalLectures > 0) {
-        const progressPercent = Math.round(
-          (updated.size / totalLectures) * 100,
-        );
-        api.updateProgress(id, progressPercent).catch(() => {});
+        const pct = Math.round((updated.size / totalLectures) * 100);
+        api.updateProgress(id, pct).catch(() => {});
       }
-
       return updated;
     });
     toast.success("Lecture complete! Next lecture unlocked 🎉");
@@ -200,20 +263,16 @@ export default function CourseDetailPage() {
       toast.error("Please enroll first!");
       return;
     }
-
-    // ✅ Half-access guard — idx >= halfCount means beyond allowed range
-    if (accessType === "half" && idx >= Math.ceil(allLectures.length / 2)) {
-      toast.error(
-        "You have half payment — pay full payment then you can watch this lecture!",
-        { duration: 3500 },
-      );
+    if (accessType === "half" && idx >= halfCount) {
+      toast.error("You have half payment — pay full to watch this lecture!", {
+        duration: 3500,
+      });
       setTimeout(() => handleUpgradeClick(), 1200);
       return;
     }
-
     const completed = completedRef.current;
     if (idx !== 0 && !completed.has(idx - 1)) {
-      toast.error("Please complete the previous lecture first!");
+      toast.error("Complete the previous lecture first!");
       return;
     }
     setActiveVideo(videoUrl);
@@ -237,7 +296,7 @@ export default function CourseDetailPage() {
 
   const handleUpgradeClick = () => {
     setIsChecking(true);
-    router.push(`/payment/${id}`);
+    router.push(`/payment/${id}?upgrade=true`);
   };
 
   const progressPercent =
@@ -245,7 +304,6 @@ export default function CourseDetailPage() {
       ? Math.round((completedVideos.size / lecturesList.length) * 100)
       : 0;
 
-  // ─── Loading ───
   if (loading)
     return (
       <div className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center">
@@ -256,37 +314,6 @@ export default function CourseDetailPage() {
         <p className="font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-widest text-xs">
           Loading...
         </p>
-      </div>
-    );
-
-  // ─── Revoked ───
-  if (isRevoked)
-    return (
-      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center px-4 text-center gap-6">
-        <div className="w-20 h-20 rounded-3xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center border border-red-100 dark:border-red-500/20">
-          <ShieldOff size={36} className="text-red-500" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
-            Access Revoked
-          </h2>
-          <p className="text-slate-500 dark:text-zinc-400 max-w-sm leading-relaxed">
-            Your access has been revoked. Please contact the admin for
-            assistance.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 px-5 py-3 rounded-2xl">
-          <AlertTriangle size={16} className="text-red-500 shrink-0" />
-          <span className="text-sm font-bold text-red-600 dark:text-red-400">
-            Contact admin to restore access
-          </span>
-        </div>
-        <button
-          onClick={() => router.push("/course")}
-          className="flex items-center gap-2 text-sm font-bold text-[#0a348f] dark:text-blue-400 hover:underline"
-        >
-          <ChevronLeft size={16} /> Browse other courses
-        </button>
       </div>
     );
 
@@ -323,7 +350,6 @@ export default function CourseDetailPage() {
             )}
           </button>
         )}
-        {/* Upgrade badge for half-access */}
         {isEnrolled && accessType === "half" && (
           <button
             onClick={handleUpgradeClick}
@@ -402,7 +428,6 @@ export default function CourseDetailPage() {
             )}
           </div>
 
-          {/* Seek warning */}
           {activeVideo && !canSkip && (
             <div className="bg-amber-50 dark:bg-amber-500/10 border-b border-amber-100 dark:border-amber-500/20 px-4 py-2.5 flex items-center gap-2">
               <Lock size={12} className="text-amber-500 shrink-0" />
@@ -413,9 +438,8 @@ export default function CourseDetailPage() {
             </div>
           )}
 
-          {/* Half-access upgrade banner */}
           {isEnrolled && accessType === "half" && (
-            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 flex items-center justify-between gap-3">
+            <div className="bg-linear-to-r from-amber-500 to-orange-500 px-4 py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Lock size={14} className="text-white shrink-0" />
                 <p className="text-xs font-bold text-white">
@@ -431,7 +455,7 @@ export default function CourseDetailPage() {
                 {isChecking ? (
                   <Loader2 size={12} className="animate-spin" />
                 ) : (
-                  `Unlock All →`
+                  "Unlock All →"
                 )}
               </button>
             </div>
@@ -452,6 +476,16 @@ export default function CourseDetailPage() {
               <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 {allLectures.length} videos
               </span>
+              {/* Avg rating badge */}
+              {avgRating > 0 && (
+                <>
+                  <span className="text-slate-300 dark:text-slate-600">•</span>
+                  <span className="flex items-center gap-1 text-sm font-bold text-amber-500">
+                    <Star size={14} fill="currentColor" /> {avgRating} (
+                    {reviews.length})
+                  </span>
+                </>
+              )}
               {isEnrolled && (
                 <span className="bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 text-xs font-bold px-3 py-1 rounded-full border border-green-200 dark:border-green-500/30">
                   ✓ Enrolled
@@ -472,7 +506,12 @@ export default function CourseDetailPage() {
 
           {/* Tabs */}
           <div className="px-4 pb-8 pt-4 transition-colors duration-300">
-            <Tabs defaultValue="overview">
+            <Tabs
+              defaultValue="overview"
+              onValueChange={(v) => {
+                if (v === "reviews") fetchReviews();
+              }}
+            >
               <TabsList className="bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none w-full justify-start h-12 gap-8 mb-6 overflow-x-auto overflow-y-hidden">
                 {["overview", "reviews"].map((tab) => (
                   <TabsTrigger
@@ -481,10 +520,16 @@ export default function CourseDetailPage() {
                     className="text-slate-500 dark:text-slate-400 data-[state=active]:text-[#0a348f] dark:data-[state=active]:text-blue-400 data-[state=active]:border-b-2 data-[state=active]:border-[#0a348f] dark:data-[state=active]:border-blue-400 rounded-none bg-transparent capitalize font-bold text-sm px-1 pb-2 shadow-none"
                   >
                     {tab}
+                    {tab === "reviews" && reviews.length > 0 && (
+                      <span className="ml-1.5 text-[10px] bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded-full font-black">
+                        {reviews.length}
+                      </span>
+                    )}
                   </TabsTrigger>
                 ))}
               </TabsList>
 
+              {/* ── Overview Tab ── */}
               <TabsContent value="overview" className="space-y-6">
                 <div className="bg-white dark:bg-slate-800/50 rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 dark:border-slate-800 space-y-4 transition-colors duration-300">
                   <div className="flex gap-2 flex-wrap">
@@ -554,43 +599,236 @@ export default function CourseDetailPage() {
                 )}
               </TabsContent>
 
+              {/* ── Reviews Tab ── */}
               <TabsContent value="reviews" className="space-y-6">
+                {/* Submit / Edit Review */}
                 <div className="bg-white dark:bg-slate-800/50 rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 dark:border-slate-800 space-y-5 transition-colors duration-300">
-                  <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">
-                    Rate this Course
-                  </h3>
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">
+                      {myReview ? "Update Your Review" : "Rate this Course"}
+                    </h3>
+                    {myReview && (
                       <button
-                        key={star}
-                        onClick={() => setUserRating(star)}
-                        className="transition-transform active:scale-90 outline-none"
+                        onClick={handleDeleteReview}
+                        disabled={deletingReview}
+                        className="flex items-center gap-1.5 text-xs font-bold text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 px-3 py-1.5 rounded-xl transition-all"
                       >
-                        <Star
-                          size={32}
-                          className={`${star <= userRating ? "text-amber-400 fill-amber-400" : "text-slate-200 dark:text-slate-600"} transition-colors`}
-                        />
+                        {deletingReview ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
+                        Delete
                       </button>
-                    ))}
-                    {userRating > 0 && (
-                      <span className="ml-3 font-bold text-amber-500 self-center bg-amber-50 dark:bg-amber-500/10 px-3 py-1 rounded-full text-sm">
-                        {userRating}/5
-                      </span>
                     )}
                   </div>
-                  <Textarea
-                    placeholder="Share your experience..."
-                    value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
-                    className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-2xl min-h-30 focus-visible:ring-[#0a348f] dark:focus-visible:ring-blue-500"
-                  />
-                  <Button
-                    className="bg-[#0a348f] dark:bg-blue-600 text-white font-bold rounded-xl px-8 h-12 hover:bg-blue-800 dark:hover:bg-blue-700"
-                    disabled={!userRating}
-                  >
-                    Submit Review <Send size={16} className="ml-2" />
-                  </Button>
+
+                  {!isEnrolled ? (
+                    <div className="flex items-center gap-3 bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl px-5 py-4">
+                      <Lock size={16} className="text-slate-400 shrink-0" />
+                      <p className="text-sm font-bold text-slate-500 dark:text-zinc-400">
+                        Enroll in this course to leave a review
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Stars */}
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => setUserRating(star)}
+                            className="transition-transform active:scale-90 outline-none hover:scale-110"
+                          >
+                            <Star
+                              size={32}
+                              className={`${star <= userRating ? "text-amber-400 fill-amber-400" : "text-slate-200 dark:text-slate-600"} transition-colors`}
+                            />
+                          </button>
+                        ))}
+                        {userRating > 0 && (
+                          <span className="ml-3 font-bold text-amber-500 self-center bg-amber-50 dark:bg-amber-500/10 px-3 py-1 rounded-full text-sm">
+                            {
+                              [
+                                "",
+                                "Poor",
+                                "Fair",
+                                "Good",
+                                "Very Good",
+                                "Excellent",
+                              ][userRating]
+                            }
+                          </span>
+                        )}
+                      </div>
+
+                      <Textarea
+                        placeholder="Share your experience with this course..."
+                        value={reviewText}
+                        onChange={(e) => setReviewText(e.target.value)}
+                        className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-2xl min-h-28 focus-visible:ring-[#0a348f] dark:focus-visible:ring-blue-500"
+                      />
+                      <Button
+                        onClick={handleSubmitReview}
+                        disabled={
+                          !userRating || !reviewText.trim() || submitting
+                        }
+                        className="bg-[#0a348f] dark:bg-blue-600 text-white font-bold rounded-xl px-8 h-12 hover:bg-blue-800 dark:hover:bg-blue-700"
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin mr-2" />{" "}
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <Send size={16} className="mr-2" />{" "}
+                            {myReview ? "Update Review" : "Submit Review"}
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  )}
                 </div>
+
+                {/* Reviews List */}
+                {reviewsLoading ? (
+                  <div className="flex items-center justify-center py-10 gap-3">
+                    <Loader2
+                      size={22}
+                      className="animate-spin text-[#0a348f] dark:text-blue-400"
+                    />
+                    <span className="text-sm font-bold text-slate-400">
+                      Loading reviews...
+                    </span>
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center">
+                      <MessageSquare
+                        size={22}
+                        className="text-slate-400 dark:text-slate-500"
+                      />
+                    </div>
+                    <p className="text-sm font-bold text-slate-400 dark:text-zinc-500">
+                      No reviews yet — be the first!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Rating summary */}
+                    <div className="bg-white dark:bg-slate-800/50 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 flex items-center gap-6">
+                      <div className="text-center">
+                        <p className="text-5xl font-black text-slate-900 dark:text-white">
+                          {avgRating}
+                        </p>
+                        <div className="flex gap-0.5 mt-1 justify-center">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              size={14}
+                              className={
+                                s <= avgRating
+                                  ? "text-amber-400 fill-amber-400"
+                                  : "text-slate-200 dark:text-slate-600"
+                              }
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1 font-semibold">
+                          {reviews.length} reviews
+                        </p>
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        {[5, 4, 3, 2, 1].map((star) => {
+                          const count = reviews.filter(
+                            (r) => r.rating === star,
+                          ).length;
+                          const pct = reviews.length
+                            ? Math.round((count / reviews.length) * 100)
+                            : 0;
+                          return (
+                            <div key={star} className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-400 w-3">
+                                {star}
+                              </span>
+                              <Star
+                                size={10}
+                                className="text-amber-400 fill-amber-400 shrink-0"
+                              />
+                              <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className="bg-amber-400 h-full rounded-full transition-all"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-semibold w-6 text-right">
+                                {count}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Individual reviews */}
+                    {reviews.map((review) => (
+                      <div
+                        key={review._id}
+                        className="bg-white dark:bg-slate-800/50 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 space-y-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center overflow-hidden shrink-0">
+                            {review.user?.photoURL ? (
+                              <img
+                                src={review.user.photoURL}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-white font-black text-xs">
+                                {review.user?.name?.[0]?.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-bold text-sm text-slate-800 dark:text-white">
+                              {review.user?.name}
+                            </p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <div className="flex gap-0.5">
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                  <Star
+                                    key={s}
+                                    size={11}
+                                    className={
+                                      s <= review.rating
+                                        ? "text-amber-400 fill-amber-400"
+                                        : "text-slate-200 dark:text-slate-600"
+                                    }
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-semibold">
+                                {new Date(review.createdAt).toLocaleDateString(
+                                  "en-PK",
+                                  {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  },
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                          {review.comment}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>
@@ -626,11 +864,9 @@ export default function CourseDetailPage() {
             </div>
           </div>
 
-          {/* Lecture List */}
           <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
             {allLectures.length > 0 ? (
               <>
-                {/* ── Accessible lectures ── */}
                 {lecturesList.map((lec: any, idx: number) => {
                   const videoSrc = lec.videoUrl || lec.url;
                   const isActive = activeVideo === videoSrc;
@@ -744,10 +980,8 @@ export default function CourseDetailPage() {
                   );
                 })}
 
-                {/* ── Locked (half-access) lectures ── */}
                 {lockedLectures.length > 0 && (
                   <>
-                    {/* Divider with upgrade CTA */}
                     <div className="px-6 py-4 bg-amber-50/50 dark:bg-amber-500/5 border-l-4 border-l-amber-400">
                       <div className="flex items-center justify-between gap-3">
                         <div>
@@ -766,16 +1000,12 @@ export default function CourseDetailPage() {
                         </button>
                       </div>
                     </div>
-
                     {lockedLectures.map((lec: any, i: number) => (
                       <div
                         key={lec._id || i}
                         className="flex items-center gap-4 px-6 py-4 cursor-pointer opacity-60 hover:opacity-80 border-l-4 border-l-transparent transition-all"
                         onClick={() => {
-                          toast.error(
-                            "You have half payment — pay full payment then you can watch this lecture!",
-                            { duration: 3500 },
-                          );
+                          toast.error("Pay full to watch!", { duration: 3500 });
                           setTimeout(() => handleUpgradeClick(), 1200);
                         }}
                       >
@@ -839,7 +1069,6 @@ export default function CourseDetailPage() {
               </p>
             </div>
           )}
-
           {isEnrolled && accessType === "half" && (
             <div className="sticky bottom-0 p-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 transition-colors duration-300">
               <Button
@@ -850,7 +1079,7 @@ export default function CourseDetailPage() {
                 {isChecking ? (
                   <Loader2 className="animate-spin" />
                 ) : (
-                  `Pay Remaining Half — Unlock All Videos`
+                  "Pay Remaining Half — Unlock All Videos"
                 )}
               </Button>
               <p className="text-center text-xs font-medium text-slate-500 dark:text-slate-400 mt-3">
@@ -859,7 +1088,6 @@ export default function CourseDetailPage() {
               </p>
             </div>
           )}
-
           {isEnrolled && accessType === "full" && (
             <div className="sticky bottom-0 p-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 transition-colors duration-300">
               <div className="flex items-center justify-center gap-2 py-4 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-2xl">

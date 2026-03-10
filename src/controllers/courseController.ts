@@ -13,6 +13,7 @@ import Stripe from "stripe";
 interface AuthResult {
     success: boolean;
     error?: string;
+    status?: number;
     user: { userId: string; email?: string; role?: string; };
 }
 
@@ -341,43 +342,22 @@ export async function EnrollInCourse(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
-
-// ─────────────────────────────────────────────
-// CHECK ENROLLMENT
-// ─────────────────────────────────────────────
 export async function CheckEnrollment(request: NextRequest) {
     try {
         await dbConnect();
-        const auth = await validateRequest(request) as any;
 
-        if (!auth.success) {
-            if (auth.status === 403 || auth.error?.toLowerCase().includes("revoked")) {
-                return NextResponse.json({
-                    isEnrolled: false,
-                    isRevoked: true,
-                    accessType: null,
-                    paymentMethod: null
-                });
-            }
-            return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
-        }
+        const authHeader = request.headers.get("authorization");
+        if (!authHeader) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
+
+        const auth = await validateRequest(request) as AuthResult;
+        if (!auth.success) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
 
         const url = new URL(request.url);
         const courseId = url.searchParams.get("courseId");
         if (!courseId) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
 
         const enrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
-
         if (!enrollment) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
-
-        if (enrollment.status === "revoked") {
-            return NextResponse.json({
-                isEnrolled: false,
-                isRevoked: true,
-                accessType: null,
-                paymentMethod: null,
-            });
-        }
 
         const walletPayment = await Payment.findOne({ user: auth.user.userId, course: courseId });
         const paymentMethod = walletPayment ? "wallet" : "card";
@@ -387,37 +367,11 @@ export async function CheckEnrollment(request: NextRequest) {
             accessType: enrollment.accessType ?? null,
             paymentMethod,
         });
+
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
-
-// ─────────────────────────────────────────────
-// WALLET VERIFICATION
-// ─────────────────────────────────────────────
-export async function WalletVerification(req: Request) {
-    try {
-        await dbConnect();
-        const body = await req.json();
-        const { courseId, method, phone, amount, userId, image, accessType = "full" } = body;
-
-        if (!image) return NextResponse.json({ success: false, message: "Payment screenshot is required." }, { status: 400 });
-
-        const uploadResponse = await cloudinary.uploader.upload(image, { folder: "lms_slips" });
-        const receiptUrl = uploadResponse.secure_url;
-
-        const payment = await Payment.create({
-            user: userId, course: courseId, amount,
-            paymentMethod: method, senderPhone: phone,
-            receiptUrl, status: "pending",
-        });
-
-        return NextResponse.json({ success: true, message: "Slip uploaded & submitted successfully!", data: payment });
-    } catch (error: any) {
-        return NextResponse.json({ success: false, message: error.message || "Internal Server Error" }, { status: 500 });
-    }
-}
-
 // ─────────────────────────────────────────────
 // ADMIN REVENUE
 // ─────────────────────────────────────────────

@@ -5,6 +5,7 @@ import AdminStats from "@/components/admin/AdminStats";
 import CourseTable from "@/components/admin/CourseTable";
 import AdminPendingPayments from "@/components/admin/Adminpendingpayments";
 import { TrendingUp, Calendar } from "lucide-react";
+import AdminReviews from "@/components/admin/Adminreviews ";
 
 export default function AdminDashboard() {
   const today = new Date().toLocaleDateString("en-PK", {
@@ -105,8 +106,10 @@ export default function AdminDashboard() {
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-linear-to-r from-transparent via-slate-200 dark:via-zinc-800 to-transparent" />
+          <div />
         </div>
+
+        <AdminReviews />
       </main>
     </div>
   );

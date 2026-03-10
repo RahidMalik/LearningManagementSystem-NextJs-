@@ -96,7 +96,6 @@ export const api = {
         })
         return response;
     },
-    // Remove token from localStorage
     logout: async () => {
         apiClient.setToken(null)
     },
@@ -239,7 +238,7 @@ export const api = {
             method: "DELETE",
         })
     },
-    getAllStudents: async (page = 1, limit = 10): Promise<ApiResponse<any>> => {
+    getAllStudents: async (page = 1, limit = 100): Promise<ApiResponse<any>> => {
         return await apiClient.request(`/admin/students?page=${page}&limit=${limit}`)
     },
     // ==========================================
@@ -262,17 +261,10 @@ export const api = {
         isEnrolled: boolean;
         accessType: "half" | "full" | null;
         paymentMethod: "card" | "wallet" | null;
-        isRevoked?: boolean; // 🚀 Naya property add ki
     }> => {
         try {
             const res = await apiClient.request(`/courses/check-enrollment?courseId=${courseId}`);
-            const data = (res?.data ?? res) as any;
-            const inner = data?.data ?? data;
-
-            // 🚀 Agar backend ne error + isRevoked bheja ho
-            if (inner?.isRevoked) {
-                return { success: false, isEnrolled: false, accessType: null, paymentMethod: null, isRevoked: true };
-            }
+            const inner: any = res?.data ?? res;
 
             const isEnrolled = inner?.isEnrolled === true;
             const accessType: "half" | "full" | null =
@@ -286,12 +278,15 @@ export const api = {
                         isEnrolled ? "card" : null;
 
             return { success: true, isEnrolled, accessType, paymentMethod };
-        } catch (error: any) {
-            if (error?.response?.status === 403 || error?.status === 403) {
-                return { success: false, isEnrolled: false, accessType: null, paymentMethod: null, isRevoked: true };
-            }
+        } catch {
             return { success: false, isEnrolled: false, accessType: null, paymentMethod: null };
         }
+    },
+    toggleCourseAccess: async (enrollmentId: string, status: "active" | "revoked"): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/admin/students/toggle-course", {
+            method: "POST",
+            data: { enrollmentId, status },
+        });
     },
     // ==========================================
     //           Payment Logic
@@ -384,6 +379,44 @@ export const api = {
         return await apiClient.request("/mail/payments/send-instructions", {
             method: "POST",
             data,
+        });
+    },
+    // ==========================================
+    //           Reviews
+    // ==========================================
+    //for user
+    getReviews: async (courseId: string): Promise<ApiResponse<{
+        reviews: any[];
+        avgRating: number;
+        totalReviews: number;
+    }>> => {
+        return await apiClient.request(`/courses/${courseId}/reviews`, {
+            method: "GET",
+        });
+    },
+
+    submitReview: async (courseId: string, data: {
+        rating: number;
+        comment: string;
+    }): Promise<ApiResponse<{ review: any }>> => {
+        return await apiClient.request(`/courses/${courseId}/reviews`, {
+            method: "POST",
+            data,
+        });
+    },
+    deleteOwnReview: async (courseId: string, reviewId: string): Promise<ApiResponse<any>> => {
+        return await apiClient.request(`/courses/${courseId}/reviews?reviewId=${reviewId}`, {
+            method: "DELETE",
+        });
+    },
+    // for admin
+    getAllReviews: async (page = 1, limit = 8, search = ""): Promise<ApiResponse<any>> => {
+        return await apiClient.request(`/admin/reviews?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`);
+    },
+
+    deleteReview: async (reviewId: string): Promise<ApiResponse<any>> => {
+        return await apiClient.request(`/admin/reviews?reviewId=${reviewId}`, {
+            method: "DELETE",
         });
     },
 };

@@ -5,12 +5,11 @@ export interface IUser extends Document {
     email: string;
     password?: string;
     role: "student" | "admin";
-    status: "active" | "revoked";
     photoURL?: string;
     phone?: string;
-    googleId?: string;        // ✅ Google Auth
-    isVerified?: boolean;      // ✅ Google Auth
-    _doc: any;           // ✅ Mongoose internal
+    googleId?: string;
+    isVerified?: boolean;
+    _doc: any;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -18,11 +17,10 @@ const UserSchema = new Schema<IUser>({
     email: { type: String, required: true, unique: true },
     password: { type: String },
     role: { type: String, enum: ["student", "admin"], default: "student" },
-    status: { type: String, enum: ["active", "revoked"], default: "active" },  // ✅
     photoURL: { type: String },
     phone: { type: String },
-    googleId: { type: String },   // ✅
-    isVerified: { type: Boolean, default: false },  // ✅
+    googleId: { type: String },
+    isVerified: { type: Boolean, default: false },
 }, { timestamps: true });
 
 if (mongoose.models.User) delete mongoose.models.User;

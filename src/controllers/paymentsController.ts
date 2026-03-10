@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import validateRequest from "@/middleware/authMiddleware";
 import dbConnect from "@/configs/mongodb";
 import { Course } from "@/models/Course";
+import { User } from "@/models/User";
 import { Enrollment } from "@/models/Enrollment";
 import mongoose from "mongoose";
 import { Payment } from "@/models/Payment";
@@ -105,6 +106,7 @@ export async function EnrollInCourse(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // CHECK ENROLLMENT
 // ─────────────────────────────────────────────
 export async function CheckEnrollment(request: NextRequest) {
@@ -118,17 +120,7 @@ export async function CheckEnrollment(request: NextRequest) {
         if (!courseId) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
 
         const enrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
-
         if (!enrollment) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
-
-        if (enrollment.status === "revoked") {
-            return NextResponse.json({
-                isEnrolled: false,
-                isRevoked: true,
-                accessType: null,
-                paymentMethod: null,
-            });
-        }
 
         const walletPayment = await Payment.findOne({ user: auth.user.userId, course: courseId });
         const paymentMethod = walletPayment ? "wallet" : "card";
@@ -198,7 +190,7 @@ export const getAdminRevenue = async (req: Request) => {
         const walletPayments = await Payment.find({ status: "approved" });
         const walletRevenue = walletPayments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
         const walletPairs = walletPayments.map((p: any) => `${p.user?.toString()}_${p.course?.toString()}`);
-        const allEnrollments = await Enrollment.find({ status: "active" }).populate("course", "price");
+        const allEnrollments = await Enrollment.find({}).populate("course", "price");
         const stripeEnrollments = allEnrollments.filter((e: any) => !walletPairs.includes(`${e.user?.toString()}_${e.course?.toString()}`));
         const stripeRevenue = stripeEnrollments.reduce((sum: number, e: any) => {
             const price = Number(e.course?.price) || 0;
@@ -220,7 +212,7 @@ export const getCoursesState = async (req: Request) => {
         const authResult = await validateRequest(req);
         if (!authResult.success || !authResult.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        const enrollments = await Enrollment.find({ status: "active" }).populate("course", "price title");
+        const enrollments = await Enrollment.find({}).populate("course", "price title");
         const walletPayments = await Payment.find({ status: "approved" }).lean();
         const walletPairs = walletPayments.map((p: any) => `${p.user?.toString()}_${p.course?.toString()}`);
         const stateMap: Record<string, { students: number; revenue: number }> = {};
@@ -293,11 +285,9 @@ export async function ApproveWalletPayment(request: NextRequest) {
 
         const accessType = (payment as any).accessType || "full";
 
-        // ✅ Check FIRST — before touching payment status
         const existing = await Enrollment.findOne({ user: payment.user, course: payment.course });
 
         if (existing && existing.accessType === "full") {
-            // ⚠️ Already fully enrolled — do NOT approve, just warn
             return NextResponse.json({
                 success: true,
                 alreadyEnrolled: true,
@@ -324,7 +314,6 @@ export async function ApproveWalletPayment(request: NextRequest) {
             });
         }
 
-        // ✅ Send approval email
         try {
             const populatedPayment = await Payment.findById(paymentId)
                 .populate("user", "name email")

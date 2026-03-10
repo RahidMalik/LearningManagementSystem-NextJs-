@@ -6,7 +6,7 @@ export interface IEnrollment extends Document {
     progress: number;
     enrolledAt: Date;
     accessType: "half" | "full";
-    status: "active" | "completed" | "revoked";
+    status: "active" | "completed";
 }
 
 const EnrollmentSchema = new Schema<IEnrollment>({
@@ -15,13 +15,10 @@ const EnrollmentSchema = new Schema<IEnrollment>({
     progress: { type: Number, default: 0 },
     enrolledAt: { type: Date, default: Date.now },
     accessType: { type: String, enum: ["half", "full"], default: "full" },
-    status: { type: String, enum: ["active", "completed", "revoked"], default: "active" },
+    status: { type: String, enum: ["active", "completed"], default: "active" },
 });
 
 EnrollmentSchema.index({ user: 1, course: 1 }, { unique: true });
 
-if (mongoose.models.Enrollment) {
-    delete mongoose.models.Enrollment;
-}
-
+if (mongoose.models.Enrollment) delete mongoose.models.Enrollment;
 export const Enrollment = mongoose.model<IEnrollment>("Enrollment", EnrollmentSchema);

@@ -4,15 +4,13 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users,
-  ShieldCheck,
-  ShieldOff,
   Search,
-  MoreVertical,
   BookOpen,
   Calendar,
-  UserCheck,
-  UserX,
   Loader2,
+  ChevronDown,
+  PlayCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { api } from "@/services/api";
 import toast from "react-hot-toast";
@@ -39,28 +37,21 @@ export default function AdminStudents() {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "active" | "revoked">("all");
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
 
-  // ── Fetch students ──
   useEffect(() => {
-    const fetch = async () => {
+    const load = async () => {
       try {
         const res: any = await api.getAllStudents(1, 100);
-
-        // 🚀 FIX: Safely parse the backend response
-        const backendData =
-          res.data && !Array.isArray(res.data) ? res.data : res;
-        const studentsList = Array.isArray(backendData.data)
-          ? backendData.data
-          : Array.isArray(backendData)
-            ? backendData
+        const payload = res?.data ?? res;
+        const list: any[] = Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
             : [];
-        const total =
-          backendData.totalStudents ?? backendData.total ?? studentsList.length;
-
-        setStudents(studentsList);
+        const total = payload?.totalStudents ?? payload?.total ?? list.length;
+        setStudents(list);
         setTotalCount(total);
       } catch {
         toast.error("Failed to fetch students");
@@ -68,63 +59,20 @@ export default function AdminStudents() {
         setLoading(false);
       }
     };
-    fetch();
+    load();
   }, []);
 
-  // ── Toggle access — needs backend endpoint ──
-  const toggleAccess = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === "active" ? "revoked" : "active";
-
-    // Optimistic UI update
-    setStudents((prev) =>
-      prev.map((s) => (s._id === id ? { ...s, status: newStatus } : s)),
-    );
-    setOpenMenu(null);
-
-    try {
-      const res = await (api as any).toggleStudentAccess(id, newStatus);
-
-      // 🚀 FIX: Agar backend se success false aaya hai, toh revert karo aur error dikhao
-      if (!res.success) {
-        throw new Error(res.error || "Failed to update access");
-      }
-
-      toast.success(
-        newStatus === "active" ? "✅ Access granted!" : "🚫 Access revoked!",
-      );
-    } catch (err: any) {
-      console.error("Toggle API failed:", err);
-      setStudents((prev) =>
-        prev.map((s) => (s._id === id ? { ...s, status: currentStatus } : s)),
-      );
-      toast.error(err?.message || "Failed to update access — check API route");
-    }
-  };
-
-  const filtered = students.filter((s) => {
-    const nameMatch = (s.name || "")
-      .toLowerCase()
-      .includes(search.toLowerCase());
-    const emailMatch = (s.email || "")
-      .toLowerCase()
-      .includes(search.toLowerCase());
-    const matchSearch = nameMatch || emailMatch;
-
-    const matchFilter = filter === "all" || (s.status || "active") === filter;
-    return matchSearch && matchFilter;
-  });
-
-  const activeCount = students.filter(
-    (s) => (s.status || "active") === "active",
-  ).length;
-  const revokedCount = students.filter((s) => s.status === "revoked").length;
+  const filtered = students.filter(
+    (s) =>
+      (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (s.email || "").toLowerCase().includes(search.toLowerCase()),
+  );
 
   return (
     <div className="flex min-h-screen">
       <AdminSidebar />
-
       <main className="flex-1 overflow-auto">
-        {/* ── Sticky Header ── */}
+        {/* Header */}
         <div className="sticky top-0 z-30 backdrop-blur-md border-b border-slate-100 dark:border-zinc-800 px-4 sm:px-8 py-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
@@ -150,93 +98,62 @@ export default function AdminStudents() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search students..."
-                className="pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-zinc-700 rounded-xl w-48 sm:w-56 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 focus:outline-none focus:border-[#0a348f] dark:focus:border-blue-500 transition-all"
+                className="pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-zinc-700 rounded-xl w-48 sm:w-64 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 focus:outline-none focus:border-[#0a348f] dark:focus:border-blue-500 transition-all bg-transparent"
               />
             </div>
           </div>
         </div>
 
         <div className="px-4 sm:px-8 py-6 sm:py-8 space-y-6">
-          {/* ── Stats ── */}
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            {[
-              {
-                label: "Total",
-                value: totalCount,
-                icon: Users,
-                color: "text-[#0a348f] dark:text-blue-400",
-                bg: "bg-blue-50 dark:bg-blue-500/10",
-              },
-              {
-                label: "Active",
-                value: activeCount,
-                icon: UserCheck,
-                color: "text-emerald-600 dark:text-emerald-400",
-                bg: "bg-emerald-50 dark:bg-emerald-500/10",
-              },
-              {
-                label: "Revoked",
-                value: revokedCount,
-                icon: UserX,
-                color: "text-red-500 dark:text-red-400",
-                bg: "bg-red-50 dark:bg-red-500/10",
-              },
-            ].map((s, i) => (
-              <div
-                key={i}
-                className="border border-slate-100 dark:border-zinc-800 rounded-2xl px-4 py-3 sm:px-5 sm:py-4 flex items-center gap-3 shadow-sm"
-              >
-                <div className={`p-2 sm:p-2.5 rounded-xl ${s.bg} shrink-0`}>
-                  <s.icon size={15} className={s.color} />
-                </div>
-                <div>
-                  {loading ? (
-                    <div className="h-5 w-8 bg-slate-100 dark:bg-zinc-800 rounded animate-pulse" />
-                  ) : (
-                    <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white leading-none">
-                      {s.value}
-                    </p>
-                  )}
-                  <p className="text-[9px] sm:text-[10px] text-slate-400 dark:text-zinc-500 font-semibold uppercase tracking-wider mt-0.5">
-                    {s.label}
-                  </p>
-                </div>
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-xs">
+            <div className="border border-slate-100 dark:border-zinc-800 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
+              <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 shrink-0">
+                <Users
+                  size={15}
+                  className="text-[#0a348f] dark:text-blue-400"
+                />
               </div>
-            ))}
-          </div>
-
-          {/* ── Filter tabs ── */}
-          <div className="flex gap-2">
-            {(["all", "active", "revoked"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ${
-                  filter === f
-                    ? "bg-[#0a348f] dark:bg-blue-500 text-white border-transparent shadow-md"
-                    : "text-slate-400 dark:text-zinc-500 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f] dark:hover:border-blue-500"
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-
-          {/* ── Students list ── */}
-          <div className="border border-slate-100 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
-            {/* Desktop header */}
-            <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-6 py-3 border-b border-slate-100 dark:border-zinc-800">
-              {["Student", "Enrolled", "Courses", ""].map((h, i) => (
-                <p
-                  key={i}
-                  className="text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest"
-                >
-                  {h}
+              <div>
+                {loading ? (
+                  <div className="h-5 w-8 bg-slate-100 dark:bg-zinc-800 rounded animate-pulse" />
+                ) : (
+                  <p className="text-lg font-black text-slate-900 dark:text-white leading-none">
+                    {totalCount}
+                  </p>
+                )}
+                <p className="text-[9px] text-slate-400 dark:text-zinc-500 font-semibold uppercase tracking-wider mt-0.5">
+                  Total
                 </p>
-              ))}
+              </div>
             </div>
+            <div className="border border-slate-100 dark:border-zinc-800 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 shrink-0">
+                <BookOpen
+                  size={15}
+                  className="text-emerald-600 dark:text-emerald-400"
+                />
+              </div>
+              <div>
+                {loading ? (
+                  <div className="h-5 w-8 bg-slate-100 dark:bg-zinc-800 rounded animate-pulse" />
+                ) : (
+                  <p className="text-lg font-black text-slate-900 dark:text-white leading-none">
+                    {students.reduce(
+                      (acc, s) => acc + (s.enrollments?.length || 0),
+                      0,
+                    )}
+                  </p>
+                )}
+                <p className="text-[9px] text-slate-400 dark:text-zinc-500 font-semibold uppercase tracking-wider mt-0.5">
+                  Enrollments
+                </p>
+              </div>
+            </div>
+          </div>
 
-            {/* Loading state */}
+          {/* Students list */}
+          <div className="border border-slate-100 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Loader2
@@ -258,10 +175,9 @@ export default function AdminStudents() {
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-50 dark:divide-zinc-800">
+              <div className="divide-y divide-slate-100 dark:divide-zinc-800">
                 <AnimatePresence>
                   {filtered.map((student, idx) => {
-                    const status = student.status || "active";
                     const initials =
                       student.name
                         ?.split(" ")
@@ -269,12 +185,9 @@ export default function AdminStudents() {
                         .join("")
                         .toUpperCase()
                         .slice(0, 2) || "ST";
-                    const courses =
-                      student.enrolledCourses?.length ||
-                      student.courses?.length ||
-                      student.courseCount ||
-                      0;
                     const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                    const isOpen = expanded === student._id;
+                    const enrollments: any[] = student.enrollments || [];
 
                     return (
                       <motion.div
@@ -282,13 +195,22 @@ export default function AdminStudents() {
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, x: -16 }}
-                        transition={{ delay: idx * 0.03 }}
-                        className="relative px-4 sm:px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-zinc-800/20 transition-all"
+                        transition={{ delay: idx * 0.02 }}
                       >
-                        {/* ── Mobile ── */}
-                        <div className="flex items-center gap-3 md:hidden">
+                        {/* Student Row */}
+                        <div
+                          className={`flex items-center gap-3 px-4 sm:px-6 py-4 cursor-pointer transition-all ${
+                            isOpen
+                              ? "bg-blue-50/50 dark:bg-blue-500/5 border-l-4 border-l-[#0a348f] dark:border-l-blue-500"
+                              : "hover:bg-slate-50 dark:hover:bg-zinc-800/30 border-l-4 border-l-transparent"
+                          }`}
+                          onClick={() =>
+                            setExpanded(isOpen ? null : student._id)
+                          }
+                        >
+                          {/* Avatar */}
                           <div
-                            className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
+                            className={`w-10 h-10 rounded-2xl bg-linear-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
                           >
                             {student.photoURL ? (
                               <img
@@ -302,160 +224,116 @@ export default function AdminStudents() {
                               </span>
                             )}
                           </div>
+
+                          {/* Info */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-black text-sm text-slate-800 dark:text-white truncate">
-                                {student.name}
-                              </p>
-                              <span
-                                className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
-                                  status === "active"
-                                    ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                    : "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400"
-                                }`}
-                              >
-                                {status === "active" ? "Active" : "Revoked"}
-                              </span>
-                            </div>
+                            <p className="font-black text-sm text-slate-800 dark:text-white truncate">
+                              {student.name}
+                            </p>
                             <p className="text-xs text-slate-400 dark:text-zinc-500 truncate">
                               {student.email}
                             </p>
-                            <div className="flex items-center gap-3 mt-1">
+                            <div className="flex items-center gap-3 mt-0.5">
                               <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-zinc-500">
                                 <Calendar size={9} />{" "}
                                 {formatDate(student.createdAt)}
                               </span>
                               <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-zinc-500">
-                                <BookOpen size={9} /> {courses} courses
+                                <BookOpen size={9} /> {enrollments.length}{" "}
+                                courses
                               </span>
                             </div>
                           </div>
-                          <button
-                            onClick={() => toggleAccess(student._id, status)}
-                            className={`shrink-0 p-2 rounded-xl transition-all border ${
-                              status === "active"
-                                ? "bg-red-50 dark:bg-red-500/10 text-red-500 border-red-100 dark:border-red-500/20 hover:bg-red-500 hover:text-white"
-                                : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 border-emerald-100 dark:border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
-                            }`}
-                          >
-                            {status === "active" ? (
-                              <ShieldOff size={14} />
-                            ) : (
-                              <ShieldCheck size={14} />
-                            )}
+
+                          {/* Expand */}
+                          <button className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-700 transition-all shrink-0">
+                            <ChevronDown
+                              size={15}
+                              className={`text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                            />
                           </button>
                         </div>
 
-                        {/* ── Desktop ── */}
-                        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 items-center">
-                          {/* Student info */}
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              className={`w-9 h-9 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-md overflow-hidden`}
+                        {/* Courses Expansion */}
+                        <AnimatePresence>
+                          {isOpen && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
                             >
-                              {student.photoURL ? (
-                                <img
-                                  src={student.photoURL}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-white font-black text-xs">
-                                  {initials}
-                                </span>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-black text-sm text-slate-800 dark:text-white truncate">
-                                {student.name}
-                              </p>
-                              <p className="text-xs text-slate-400 dark:text-zinc-500 truncate">
-                                {student.email}
-                              </p>
-                            </div>
-                          </div>
+                              <div className="bg-slate-50/50 dark:bg-zinc-900/50 border-t border-slate-100 dark:border-zinc-800">
+                                {enrollments.length === 0 ? (
+                                  <div className="px-8 py-6 flex items-center gap-3 text-slate-400 dark:text-zinc-500">
+                                    <BookOpen size={16} />
+                                    <span className="text-sm font-bold">
+                                      No courses purchased yet
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="px-4 sm:px-8 py-4 space-y-3">
+                                    <p className="text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-3">
+                                      Purchased Courses
+                                    </p>
+                                    {enrollments.map((enr: any) => (
+                                      <div
+                                        key={enr.enrollmentId}
+                                        className="flex items-center gap-3 p-3 rounded-2xl border bg-white dark:bg-zinc-800/50 border-slate-100 dark:border-zinc-700 transition-all"
+                                      >
+                                        {/* Thumbnail */}
+                                        <div className="w-12 h-9 rounded-xl overflow-hidden shrink-0 bg-slate-200 dark:bg-zinc-700 flex items-center justify-center">
+                                          {enr.thumbnail ? (
+                                            <img
+                                              src={enr.thumbnail}
+                                              alt=""
+                                              className="w-full h-full object-cover"
+                                            />
+                                          ) : (
+                                            <PlayCircle
+                                              size={14}
+                                              className="text-slate-400"
+                                            />
+                                          )}
+                                        </div>
 
-                          {/* Date */}
-                          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 font-semibold">
-                            <Calendar
-                              size={11}
-                              className="text-slate-300 dark:text-zinc-600"
-                            />
-                            {formatDate(student.createdAt)}
-                          </div>
-
-                          {/* Courses + Status */}
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#0a348f] dark:text-blue-400 px-2.5 py-1 rounded-lg text-xs font-black">
-                              <BookOpen size={10} /> {courses}
-                            </div>
-                            <div
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black ${
-                                status === "active"
-                                  ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                  : "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400"
-                              }`}
-                            >
-                              {status === "active" ? (
-                                <>
-                                  <ShieldCheck size={10} /> Active
-                                </>
-                              ) : (
-                                <>
-                                  <ShieldOff size={10} /> Revoked
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Action menu */}
-                          <div className="relative">
-                            <button
-                              onClick={() =>
-                                setOpenMenu(
-                                  openMenu === student._id ? null : student._id,
-                                )
-                              }
-                              className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-xl transition-all"
-                            >
-                              <MoreVertical
-                                size={15}
-                                className="text-slate-400 dark:text-zinc-500"
-                              />
-                            </button>
-                            <AnimatePresence>
-                              {openMenu === student._id && (
-                                <motion.div
-                                  initial={{ opacity: 0, scale: 0.9, y: -4 }}
-                                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                                  exit={{ opacity: 0, scale: 0.9, y: -4 }}
-                                  className="absolute right-8 -top-1 z-50 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden w-40"
-                                >
-                                  <button
-                                    onClick={() =>
-                                      toggleAccess(student._id, status)
-                                    }
-                                    className={`w-full flex items-center gap-2 px-4 py-3 text-xs font-black transition-all hover:bg-slate-50 dark:hover:bg-zinc-700 ${
-                                      status === "active"
-                                        ? "text-red-500"
-                                        : "text-emerald-600 dark:text-emerald-400"
-                                    }`}
-                                  >
-                                    {status === "active" ? (
-                                      <>
-                                        <ShieldOff size={13} /> Revoke Access
-                                      </>
-                                    ) : (
-                                      <>
-                                        <ShieldCheck size={13} /> Grant Access
-                                      </>
-                                    )}
-                                  </button>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </div>
+                                        {/* Title + meta */}
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-bold truncate text-slate-800 dark:text-white">
+                                            {enr.title}
+                                          </p>
+                                          <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-semibold">
+                                              PKR {enr.price?.toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] text-slate-300 dark:text-zinc-600">
+                                              •
+                                            </span>
+                                            <span
+                                              className={`text-[10px] font-bold ${enr.accessType === "half" ? "text-amber-500" : "text-emerald-500"}`}
+                                            >
+                                              {enr.accessType === "half"
+                                                ? "Half Access"
+                                                : "Full Access"}
+                                            </span>
+                                            <span className="text-[10px] text-slate-300 dark:text-zinc-600">
+                                              •
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 dark:text-zinc-500 flex items-center gap-0.5">
+                                              <CheckCircle2 size={9} />{" "}
+                                              {enr.progress}%
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </motion.div>
                     );
                   })}
@@ -465,11 +343,6 @@ export default function AdminStudents() {
           </div>
         </div>
       </main>
-
-      {/* Backdrop */}
-      {openMenu !== null && (
-        <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
-      )}
     </div>
   );
 }

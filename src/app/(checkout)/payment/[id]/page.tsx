@@ -43,7 +43,6 @@ function CheckoutForm({
   onSuccess,
   onWalletSuccess,
   isUpgrade = false,
-  prevPaymentMethod = "card",
   userId = "",
 }: {
   courseId: string;
@@ -52,16 +51,17 @@ function CheckoutForm({
   onSuccess: () => void;
   onWalletSuccess: () => void;
   isUpgrade?: boolean;
-  prevPaymentMethod?: "card" | "wallet";
   userId?: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
   const [paying, setPaying] = useState(false);
-  // ✅ Upgrade: lock to previous method. New: let user choose
+
+  // 🚀 FIX: Hamesha Card (Visa) ko by default selected rakhein
   const [paymentMethod, setPaymentMethod] = useState<
     "card" | "wallet" | "installment"
-  >(isUpgrade ? (prevPaymentMethod ?? "card") : "card");
+  >("card");
+
   const [selectedWallet, setSelectedWallet] = useState("");
   const [installmentPlan, setInstallmentPlan] = useState(
     isUpgrade ? "full" : "half",
@@ -88,46 +88,31 @@ function CheckoutForm({
     },
   };
 
-  // ✅ Upgrade: show ONLY the method they used before (no choice)
-  // New enrollment: show all methods
-  const PAYMENT_METHODS = isUpgrade
-    ? prevPaymentMethod === "wallet"
-      ? [
-          {
-            id: "wallet",
-            label: "Mobile Wallet",
-            sub: "EasyPaisa, JazzCash",
-            icon: Smartphone,
-          },
-        ]
+  // 🚀 FIX: Agar upgrade hai to sirf Card aur Wallet show honge (Installment nahi)
+  const PAYMENT_METHODS = [
+    {
+      id: "card",
+      label: "Credit / Debit Card",
+      sub: "Visa, Mastercard",
+      icon: CreditCard,
+    },
+    {
+      id: "wallet",
+      label: "Mobile Wallet",
+      sub: "EasyPaisa, JazzCash",
+      icon: Smartphone,
+    },
+    ...(isUpgrade
+      ? []
       : [
           {
-            id: "card",
-            label: "Credit / Debit Card",
-            sub: "Visa, Mastercard",
-            icon: CreditCard,
+            id: "installment",
+            label: "Pay in Installments",
+            sub: "Half access or full access",
+            icon: Wallet,
           },
-        ]
-    : [
-        {
-          id: "card",
-          label: "Credit / Debit Card",
-          sub: "Visa, Mastercard",
-          icon: CreditCard,
-        },
-        {
-          id: "wallet",
-          label: "Mobile Wallet",
-          sub: "EasyPaisa, JazzCash",
-          icon: Smartphone,
-        },
-        {
-          id: "installment",
-          label: "Pay in Installments",
-          sub: "Half access or full access",
-          icon: Wallet,
-        },
-      ];
+        ]),
+  ];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -243,6 +228,7 @@ function CheckoutForm({
     <div className="space-y-6">
       <RadioGroup
         defaultValue="card"
+        value={paymentMethod}
         onValueChange={(val) => {
           setPaymentMethod(val as "card" | "wallet" | "installment");
           setEmailSent(false);
@@ -527,7 +513,7 @@ function CheckoutForm({
             <Loader2 className="animate-spin" />
           ) : (
             (() => {
-              if (isUpgrade) return `PAY PKR ${Math.round(amount / 2)}`;
+              if (isUpgrade) return `PAY PKR ${amount}`;
               if (paymentMethod === "installment" && installmentPlan === "half")
                 return `PAY PKR ${Math.round(amount / 2)}`;
               return `PAY PKR ${amount}`;
@@ -549,9 +535,6 @@ export default function PaymentPage() {
   const [finalAmount, setFinalAmount] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [isUpgrade, setIsUpgrade] = useState(false);
-  const [prevPaymentMethod, setPrevPaymentMethod] = useState<"card" | "wallet">(
-    "card",
-  );
   const [currentUserId, setCurrentUserId] = useState("");
 
   useEffect(() => {
@@ -568,9 +551,8 @@ export default function PaymentPage() {
 
         if (enrollCheck.isEnrolled) {
           if (enrollCheck.accessType === "half") {
-            // Half enrolled → show upgrade page (do NOT redirect)
+            // Half enrolled → show upgrade page
             setIsUpgrade(true);
-            setPrevPaymentMethod(enrollCheck.paymentMethod ?? "card");
           } else {
             // Fully enrolled → redirect to course
             redirecting = true;
@@ -599,17 +581,13 @@ export default function PaymentPage() {
           });
           setDiscount(data.discount || 0);
 
-          // ✅ THE FIX:
-          // Upgrade (half→full): backend expects accessType="full" to allow the intent
-          // New enrollment: "full" default (CheckoutForm handles installment choice)
-          // WRONG was: enrollCheck.accessType === "half" ? "half" : "full"
-          // "half" caused backend to return "already enrolled" error
           const accessTypeForIntent = "full";
 
           const intentRes = (await api.createPaymentIntent(
             id,
             accessTypeForIntent,
           )) as any;
+
           if (intentRes.success) {
             setClientSecret(intentRes.clientSecret);
             setFinalAmount(intentRes.amount);
@@ -718,7 +696,6 @@ export default function PaymentPage() {
                     amount={finalAmount}
                     clientSecret={clientSecret}
                     isUpgrade={isUpgrade}
-                    prevPaymentMethod={prevPaymentMethod}
                     userId={currentUserId}
                     onSuccess={() => router.push("/payment-success")}
                     onWalletSuccess={() =>
@@ -740,40 +717,44 @@ export default function PaymentPage() {
           </div>
 
           <div className="lg:col-span-4 space-y-4">
-            <div className="rounded-[2.5rem] p-8 text-slate-900 shadow-2xl shadow-blue-200 dark:shadow-none border border-slate-100">
-              <h2 className="text-xl font-bold mb-6">Order Details</h2>
+            <div className="rounded-[2.5rem] p-8 text-white shadow-2xl bg-[#0a348f] border border-blue-800">
+              <h2 className="text-xl font-bold mb-6 text-white">
+                Order Details
+              </h2>
               <div className="space-y-4 mb-8">
                 <div>
-                  <span className="text-slate-400 text-xs uppercase font-bold tracking-widest">
+                  <span className="text-blue-200 text-xs uppercase font-bold tracking-widest">
                     Course
                   </span>
-                  <p className="text-base font-semibold mt-1">{course.title}</p>
+                  <p className="text-base font-semibold mt-1 text-white">
+                    {course.title}
+                  </p>
                 </div>
-                <div className="pt-4 border-t border-slate-200 space-y-3 text-sm">
+                <div className="pt-4 border-t border-blue-400/30 space-y-3 text-sm">
                   {isUpgrade ? (
                     <>
-                      <div className="flex justify-between text-slate-500">
+                      <div className="flex justify-between text-blue-100">
                         <span>Full Price</span>
                         <span className="font-medium">PKR {course.price}</span>
                       </div>
-                      <div className="flex justify-between text-green-500">
+                      <div className="flex justify-between text-green-300">
                         <span>Already Paid (½)</span>
                         <span className="font-medium">
                           -PKR {Math.round(course.price / 2)}
                         </span>
                       </div>
-                      <div className="flex justify-between text-amber-600 font-bold border-t border-dashed border-amber-200 pt-2">
+                      <div className="flex justify-between text-amber-300 font-bold border-t border-dashed border-blue-400/30 pt-2">
                         <span>Remaining Balance</span>
                         <span>PKR {Math.round(course.price / 2)}</span>
                       </div>
                     </>
                   ) : (
                     <>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Price</span>
+                      <div className="flex justify-between text-blue-100">
+                        <span>Price</span>
                         <span className="font-medium">PKR {course.price}</span>
                       </div>
-                      <div className="flex justify-between text-green-500">
+                      <div className="flex justify-between text-green-300">
                         <span>Discount ({discount}%)</span>
                         <span className="font-medium">
                           -PKR {Math.round((course.price * discount) / 100)}
@@ -783,13 +764,13 @@ export default function PaymentPage() {
                   )}
                 </div>
               </div>
-              <div className="flex justify-between items-center pt-6 border-t border-slate-200">
-                <span className="text-slate-500 font-medium">Total</span>
-                <span className="text-3xl font-black text-[#0a348f]">
+              <div className="flex justify-between items-center pt-6 border-t border-blue-400/30">
+                <span className="text-blue-100 font-medium">Total</span>
+                <span className="text-3xl font-black text-white">
                   PKR {isUpgrade ? Math.round(course.price / 2) : finalAmount}
                 </span>
               </div>
-              <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+              <div className="mt-6 flex items-center justify-center gap-2 text-blue-300 text-[10px] font-bold uppercase tracking-widest">
                 <Lock size={12} /> <span>SSL Secure Payment</span>
               </div>
             </div>
