@@ -353,6 +353,9 @@ export const api = {
             method: "GET",
         });
     },
+    // ==========================================
+    //           Send email
+    // ==========================================
 
     approveWalletPayment: async (paymentId: string): Promise<ApiResponse<any>> => {
         return await apiClient.request("/admin/payments/approve", {
@@ -367,9 +370,6 @@ export const api = {
             data: { paymentId },
         });
     },
-    // ==========================================
-    //           Send email
-    // ==========================================
     sendWalletInstructions: async (data: {
         email: string;
         method: string;

@@ -3,12 +3,15 @@ import Stripe from "stripe";
 import validateRequest from "@/middleware/authMiddleware";
 import dbConnect from "@/configs/mongodb";
 import { Course } from "@/models/Course";
-import { User } from "@/models/User";
 import { Enrollment } from "@/models/Enrollment";
 import mongoose from "mongoose";
 import { Payment } from "@/models/Payment";
 import cloudinary from "@/configs/cloudinary";
-import { sendPaymentApprovedEmail, sendPaymentRejectedEmail, sendPaymentPendingEmail } from "@/app/api/mail/payments/emailService/route";
+import {
+    sendPaymentApprovedEmail,
+    sendPaymentRejectedEmail,
+    sendPaymentPendingEmail
+} from "@/lib/emailService";
 
 interface AuthResult {
     success: boolean;
@@ -155,7 +158,7 @@ export async function WalletVerification(req: Request) {
             receiptUrl, status: "pending",
         });
 
-        // ✅ Send pending email
+        // Send pending email
         try {
             const User = (await import("@/models/User")).User;
             const Course = (await import("@/models/Course")).Course;
@@ -252,7 +255,6 @@ export async function GetAdminWalletPayments(request: NextRequest) {
         if (!auth.success || auth.user?.role !== "admin")
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        // ✅ FIX: await was missing — was returning a Query object not data
         const payments = await Payment.find({})
             .populate("user", "name email")
             .populate("course", "title price")
@@ -263,75 +265,52 @@ export async function GetAdminWalletPayments(request: NextRequest) {
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
-
-// ─────────────────────────────────────────────
+}// ─────────────────────────────────────────────
 // APPROVE WALLET PAYMENT (Admin)
 // ─────────────────────────────────────────────
 export async function ApproveWalletPayment(request: NextRequest) {
     try {
         await dbConnect();
-        const auth = await validateRequest(request) as AuthResult;
+        const auth = await validateRequest(request) as any;
         if (!auth.success || auth.user?.role !== "admin")
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const { paymentId } = await request.json();
-        if (!paymentId)
-            return NextResponse.json({ error: "paymentId required" }, { status: 400 });
 
-        const payment = await Payment.findById(paymentId);
-        if (!payment)
-            return NextResponse.json({ error: "Payment not found" }, { status: 404 });
+        const payment = await Payment.findById(paymentId)
+            .populate("user", "name email")
+            .populate("course", "title");
+
+        if (!payment) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
 
         const accessType = (payment as any).accessType || "full";
+        const userObj: any = payment.user;
+        const courseObj: any = payment.course;
 
-        const existing = await Enrollment.findOne({ user: payment.user, course: payment.course });
-
-        if (existing && existing.accessType === "full") {
-            return NextResponse.json({
-                success: true,
-                alreadyEnrolled: true,
-                message: "User is already fully enrolled. No change made.",
-            });
-        }
-
-        // ✅ Only now mark approved
+        // ✅ Update payment + enrollment
         payment.status = "approved";
         await payment.save();
 
-        if (existing && existing.accessType === "half" && accessType === "full") {
-            // Upgrade half → full
-            existing.accessType = "full";
-            await existing.save();
-        } else if (!existing) {
-            // New enrollment
-            await Enrollment.create({
-                user: payment.user,
-                course: payment.course,
-                accessType,
-                status: "active",
-                progress: 0,
-            });
-        }
-
+        await Enrollment.findOneAndUpdate(
+            { user: userObj._id, course: courseObj._id },
+            { accessType, status: "active", progress: 0 },
+            { upsert: true, new: true }
+        );
         try {
-            const populatedPayment = await Payment.findById(paymentId)
-                .populate("user", "name email")
-                .populate("course", "title price");
-            const u = (populatedPayment as any)?.user;
-            const c = (populatedPayment as any)?.course;
-            if (u?.email && c?.title) {
+            if (userObj?.email && courseObj?.title) {
                 await sendPaymentApprovedEmail({
-                    toEmail: u.email,
-                    userName: u.name || "Student",
-                    courseName: c.title,
-                    amount: (populatedPayment as any).amount,
+                    toEmail: userObj.email,
+                    userName: userObj.name || "Student",
+                    courseName: courseObj.title,
+                    amount: (payment as any).amount,
                     accessType: accessType as "half" | "full",
                 });
             }
-        } catch (emailErr) { console.error("Approval email failed:", emailErr); }
+        } catch (emailErr) {
+            console.error("Approval email failed:", emailErr);
+        }
 
-        return NextResponse.json({ success: true, alreadyEnrolled: false, message: "Payment approved & user access granted!" });
+        return NextResponse.json({ success: true, message: "Payment approved & access granted!" });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -343,35 +322,39 @@ export async function ApproveWalletPayment(request: NextRequest) {
 export async function RejectWalletPayment(request: NextRequest) {
     try {
         await dbConnect();
-        const auth = await validateRequest(request) as AuthResult;
+        const auth = await validateRequest(request) as any;
         if (!auth.success || auth.user?.role !== "admin")
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const { paymentId } = await request.json();
-        if (!paymentId)
-            return NextResponse.json({ error: "paymentId required" }, { status: 400 });
 
-        const payment = await Payment.findByIdAndUpdate(paymentId, { status: "rejected" }, { new: true });
+        const payment = await Payment.findByIdAndUpdate(
+            paymentId,
+            { status: "rejected" },
+            { new: true }
+        )
+            .populate("user", "name email")
+            .populate("course", "title");
+
         if (!payment) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
 
-        // ✅ Send rejection email
+        const userObj: any = payment.user;
+        const courseObj: any = payment.course;
+
         try {
-            const pop = await Payment.findById(paymentId)
-                .populate("user", "name email")
-                .populate("course", "title");
-            const u = (pop as any)?.user;
-            const c = (pop as any)?.course;
-            if (u?.email && c?.title) {
+            if (userObj?.email && courseObj?.title) {
                 await sendPaymentRejectedEmail({
-                    toEmail: u.email,
-                    userName: u.name || "Student",
-                    courseName: c.title,
-                    amount: (pop as any).amount,
+                    toEmail: userObj.email,
+                    userName: userObj.name || "Student",
+                    courseName: courseObj.title,
+                    amount: (payment as any).amount,
                 });
             }
-        } catch (emailErr) { console.error("Rejection email failed:", emailErr); }
+        } catch (emailErr) {
+            console.error("Rejection email failed:", emailErr);
+        }
 
-        return NextResponse.json({ success: true, message: "Payment rejected" });
+        return NextResponse.json({ success: true, message: "Payment rejected & email sent!" });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

@@ -17,9 +17,36 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { api } from "@/services/api";
 
+// Helper function to extract correct course object/data
+const getCourseData = (item: any) => {
+  if (item.course && typeof item.course === "object") {
+    // If backend returns Enrollments populated with course
+    return {
+      _id: item.course._id,
+      title: item.course.title,
+      progress: item.progress || 0,
+    };
+  }
+  // If backend returns Courses directly
+  return {
+    _id: item._id,
+    title: item.title,
+    progress: item.progress || 0,
+  };
+};
+
+// Colors array to make courses look colorful and dynamic like your mockup
+const PROGRESS_COLORS = [
+  "bg-blue-500",
+  "bg-orange-500",
+  "bg-emerald-500",
+  "bg-violet-500",
+];
+
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [myCourses, setMyCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [newName, setNewName] = useState<string>("");
@@ -29,13 +56,29 @@ export default function ProfilePage() {
 
   // --- Fetch Data from MongoDB ---
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchData = async () => {
       try {
-        const res = await api.getProfile();
-        const userData = res?.success ? res.user : res?.data?.user;
+        const [profileRes, coursesRes] = await Promise.all([
+          api.getProfile(),
+          api.getMyCourses(),
+        ]);
+
+        const profileRaw = profileRes as any;
+        const userData = profileRaw?.success
+          ? profileRaw.user
+          : profileRaw?.data?.user;
         if (userData) {
           setUser(userData);
           setNewName(userData.name);
+        }
+
+        const coursesRaw = coursesRes as any;
+        const coursesData = coursesRaw?.data?.data || coursesRaw?.data || [];
+
+        if (Array.isArray(coursesData)) {
+          setMyCourses(coursesData);
+        } else if (Array.isArray(coursesRaw)) {
+          setMyCourses(coursesRaw);
         }
       } catch (error: any) {
         toast.error("Session expired. Please login again.");
@@ -44,18 +87,18 @@ export default function ProfilePage() {
         setLoading(false);
       }
     };
-    fetchProfile();
+    fetchData();
   }, [router]);
 
   // --- Update Profile Logic ---
   const handleUpdate = async () => {
-    if (newName === user.name) return toast.error("No changes made");
+    if (newName === user?.name) return toast.error("No changes made");
 
     setIsUpdating(true);
     try {
       const res = await api.updateProfile({
         name: newName,
-        photoURL: user.photoURL || "",
+        photoURL: user?.photoURL || "",
       });
       if (res.success) {
         setUser({ ...user, name: newName });
@@ -187,8 +230,11 @@ export default function ProfilePage() {
 
             <div className="mt-6 w-full pt-6 border-t border-slate-50 dark:border-slate-700 grid grid-cols-2 gap-4 transition-colors">
               <div className="text-center">
+                {/* 🚀 Dynamic Course Count */}
                 <p className="text-xl font-bold text-[#0a348f] dark:text-blue-400">
-                  02
+                  {myCourses.length < 10
+                    ? `0${myCourses.length}`
+                    : myCourses.length}
                 </p>
                 <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">
                   Courses
@@ -292,7 +338,7 @@ export default function ProfilePage() {
             </Button>
           </section>
 
-          {/* Learning Progress Section */}
+          {/* 🚀 REAL Learning Progress Section */}
           <section className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6 transition-colors duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3 transition-colors">
               <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
@@ -305,45 +351,60 @@ export default function ProfilePage() {
             </h3>
 
             <div className="space-y-4">
-              {[
-                {
-                  title: "Graphic Design Masterclass",
-                  progress: 65,
-                  color: "bg-blue-500",
-                },
-                {
-                  title: "MERN Stack Development",
-                  progress: 25,
-                  color: "bg-orange-500",
-                },
-              ].map((course, idx) => (
-                <div
-                  key={idx}
-                  className="p-5 rounded-2xl border border-slate-50 dark:border-slate-700 hover:border-blue-100 dark:hover:border-slate-600 dark:bg-slate-700/30 transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-bold text-slate-700 dark:text-slate-200 transition-colors">
-                      {course.title}
-                    </span>
-                    <ChevronRight
-                      size={20}
-                      className="text-slate-300 dark:text-slate-500 group-hover:text-[#0a348f] dark:group-hover:text-blue-400 transition-all"
-                    />
-                  </div>
-                  <div className="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden transition-colors">
-                    <div
-                      className={`h-full transition-all duration-1000 ${course.color}`}
-                      style={{ width: `${course.progress}%` }}
-                    />
-                  </div>
-                  <div className="mt-2 flex justify-between text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-tighter transition-colors">
-                    <span>Progress</span>
-                    <span className="text-[#0a348f] dark:text-blue-400">
-                      {course.progress}% Completed
-                    </span>
-                  </div>
+              {myCourses.length === 0 ? (
+                <div className="text-center py-10 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                  <BookOpen
+                    size={30}
+                    className="mx-auto text-slate-300 dark:text-slate-600 mb-2"
+                  />
+                  <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
+                    You haven't enrolled in any courses yet.
+                  </p>
+                  <Button
+                    onClick={() => router.push("/course")}
+                    variant="link"
+                    className="text-[#0a348f] dark:text-blue-400 mt-2 font-bold"
+                  >
+                    Browse Courses →
+                  </Button>
                 </div>
-              ))}
+              ) : (
+                myCourses.map((item, idx) => {
+                  const courseData = getCourseData(item);
+                  const colorClass =
+                    PROGRESS_COLORS[idx % PROGRESS_COLORS.length];
+
+                  return (
+                    <div
+                      key={courseData._id || idx}
+                      onClick={() => router.push(`/course/${courseData._id}`)}
+                      className="p-5 rounded-2xl border border-slate-50 dark:border-slate-700 hover:border-blue-100 dark:hover:border-slate-600 dark:bg-slate-700/30 transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-bold text-slate-700 dark:text-slate-200 transition-colors line-clamp-1 pr-4">
+                          {courseData.title || "Untitled Course"}
+                        </span>
+                        <ChevronRight
+                          size={20}
+                          className="text-slate-300 dark:text-slate-500 group-hover:text-[#0a348f] dark:group-hover:text-blue-400 transition-all shrink-0"
+                        />
+                      </div>
+                      <div className="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden transition-colors">
+                        <div
+                          className={`h-full transition-all duration-1000 ${colorClass}`}
+                          style={{ width: `${courseData.progress}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex justify-between text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-tighter transition-colors">
+                        <span>Progress</span>
+                        <span className="text-[#0a348f] dark:text-blue-400">
+                          {courseData.progress}% Completed
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </section>
         </div>

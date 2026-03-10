@@ -1,7 +1,7 @@
 // src/lib/emailService.ts
 import nodemailer from "nodemailer";
 
-const transporter = nodemailer.createTransport({
+const makeTransporter = () => nodemailer.createTransport({
     service: "gmail",
     auth: {
         user: process.env.EMAIL_USER,
@@ -23,7 +23,7 @@ export async function sendPaymentApprovedEmail({
 }) {
     const isHalf = accessType === "half";
 
-    await transporter.sendMail({
+    await makeTransporter().sendMail({
         from: `"Cybex LMS" <${process.env.EMAIL_USER}>`,
         to: toEmail,
         subject: `✅ Payment Approved — ${courseName}`,
@@ -39,7 +39,7 @@ export async function sendPaymentApprovedEmail({
             <div style="padding:28px;">
                 <p style="color:#1e293b;font-size:15px;margin:0 0 20px;">Hi <b>${userName}</b>,</p>
                 <p style="color:#475569;font-size:14px;margin:0 0 20px;">
-                    Great news! Your payment for <b>${courseName}</b> has been approved by our instructor.
+                    Great news! Your payment for <b>${courseName}</b> has been approved by our admin.
                     ${isHalf
                 ? "You now have access to the <b>first 50% of videos</b>. Complete your remaining payment anytime to unlock all content."
                 : "You now have <b>full access to all videos</b> in the course. Happy learning! 🎉"
@@ -68,7 +68,7 @@ export async function sendPaymentApprovedEmail({
 
                 <!-- CTA Button -->
                 <div style="text-align:center;margin-bottom:24px;">
-                    <a href="${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}course/my-courses
+                    <a href="${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/my-courses"
                         style="background:#0a348f;color:white;padding:13px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block;">
                         Start Learning →
                     </a>
@@ -92,7 +92,7 @@ export async function sendPaymentRejectedEmail({
     courseName: string;
     amount: number;
 }) {
-    await transporter.sendMail({
+    await makeTransporter().sendMail({
         from: `"Cybex LMS" <${process.env.EMAIL_USER}>`,
         to: toEmail,
         subject: `❌ Payment Not Verified — ${courseName}`,
@@ -132,7 +132,7 @@ export async function sendPaymentRejectedEmail({
 
                 <!-- CTA Button -->
                 <div style="text-align:center;margin-bottom:24px;">
-                    <a href="${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/course"
+                    <a href="${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/payment/${courseName}"
                         style="background:#0a348f;color:white;padding:13px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block;">
                         Try Again →
                     </a>
@@ -157,7 +157,7 @@ export async function sendPaymentPendingEmail({
     amount: number;
     method: string;
 }) {
-    await transporter.sendMail({
+    await makeTransporter().sendMail({
         from: `"Cybex LMS" <${process.env.EMAIL_USER}>`,
         to: toEmail,
         subject: `⏳ Payment Under Review — ${courseName}`,
