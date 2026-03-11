@@ -26,14 +26,11 @@ const validateRequest = async (req: Request) => {
         }
 
         await dbconnect();
-        const user = await User.findById(decoded.userId).select("status role");
+
+        const user = await User.findById(decoded.userId).select("role");
 
         if (!user) {
             return { error: "User not found.", status: 404 };
-        }
-
-        if (user.status === "revoked") {
-            return { error: "Your access has been revoked. Contact admin.", status: 403 };
         }
 
         return { success: true, user: decoded, status: 200 };
