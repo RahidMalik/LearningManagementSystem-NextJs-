@@ -35,7 +35,7 @@ export default function MessagesPage() {
     const initChats = async () => {
       try {
         const res = await api.getConversations();
-        if (res.success) setConversations(res.data);
+        if (res.success) setConversations(res.data ?? []);
       } catch (err) {
         toast.error("Failed to load chats");
       } finally {
@@ -77,7 +77,7 @@ export default function MessagesPage() {
       const loadMessages = async () => {
         try {
           const res = await api.getMessages(activeChat._id);
-          setMessages(res.data);
+          setMessages(res.data ?? []);
           socket.emit("joinRoom", activeChat._id);
         } catch (err) {
           toast.error("Could not load messages");
