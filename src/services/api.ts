@@ -125,22 +125,20 @@ export const api = {
         // ==========================================
         //           Messages Logic
         // ==========================================
-    }, getConversations: async (): Promise<ApiResponse<IConversation[]>> => {
+    },
+    getConversations: async (): Promise<ApiResponse<IConversation[]>> => {
         return await apiClient.request<IConversation[]>('/messages/conversation', {
             method: 'GET',
         });
     },
-
     // 2. Fetch messages for a specific chat
     getMessages: async (convId: string): Promise<ApiResponse<IMessage[]>> => {
         return await apiClient.request<IMessage[]>(`/messages?convId=${convId}`, {
             method: 'GET',
         });
     },
-
     // 3. Send a new message
     sendMessage: async (payload: {
-        senderId: string;
         receiverId: string;
         text: string;
         conversationId?: string;
@@ -150,7 +148,6 @@ export const api = {
             data: payload,
         });
     },
-
     // 4. Mark message as seen
     markAsSeen: async (messageId: string): Promise<ApiResponse<{ success: boolean }>> => {
         return await apiClient.request<{ success: boolean }>('/messages/seen', {
@@ -158,8 +155,26 @@ export const api = {
             data: { messageId },
         });
     },
+    // 5. Get Admin Info
+    getAdminInfo: async (): Promise<ApiResponse<any>> => {
+        return await apiClient.request<any>('/messages/admin-info', {
+            method: 'GET',
+        });
+    },
+    // ==========================================
+    //           Notifications
+    // ==========================================
+    getNotifications: async (): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/notifications", { method: "GET" });
+    },
 
+    markAllNotificationsRead: async (): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/notifications/read", { method: "PUT" });
+    },
 
+    deleteNotification: async (id: string): Promise<ApiResponse<any>> => {
+        return await apiClient.request(`/notifications?id=${id}`, { method: "DELETE" });
+    },
     // ==========================================
     //           COURSES API LOGIC
     // ==========================================

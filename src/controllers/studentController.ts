@@ -1,9 +1,10 @@
 import { User } from "@/models/User";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { Enrollment } from "@/models/Enrollment";
 import validateRequest from "@/middleware/authMiddleware";
 import dbConnect from "@/configs/mongodb";
 
+import "@/models/Course";
 export const getAllStudents = async (req: Request) => {
     try {
         await dbConnect();
@@ -19,7 +20,7 @@ export const getAllStudents = async (req: Request) => {
         const skip = (page - 1) * limit;
 
         const students = await User.find({ role: "student" })
-            .select("name email photoURL createdAt status phone")
+            .select("name email photoURL createdAt phone")
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -31,24 +32,18 @@ export const getAllStudents = async (req: Request) => {
             students.map(async (student: any) => {
                 const enrollments = await Enrollment.find({ user: student._id })
                     .populate("course", "title thumbnail price")
-                    .select("course status accessType progress")
+                    .select("course accessType progress")
                     .lean();
-
-                const hasRevoked = enrollments.some((e: any) => e.status === "revoked");
-                const hasActive = enrollments.some((e: any) => e.status === "active");
-                const studentStatus = !hasActive && hasRevoked ? "revoked" : "active";
 
                 return {
                     ...student,
                     courseCount: enrollments.length,
-                    status: studentStatus,
                     enrollments: enrollments.map((e: any) => ({
                         enrollmentId: e._id,
                         courseId: e.course?._id,
                         title: e.course?.title || "Unknown Course",
                         thumbnail: e.course?.thumbnail || "",
                         price: e.course?.price || 0,
-                        status: e.status || "active",
                         accessType: e.accessType || "full",
                         progress: e.progress || 0,
                     })),

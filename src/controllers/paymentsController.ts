@@ -12,6 +12,8 @@ import {
     sendPaymentRejectedEmail,
     sendPaymentPendingEmail
 } from "@/lib/emailService";
+import { createNotification } from "@/controllers/notificationController";
+import { User } from "@/models/User";
 
 interface AuthResult {
     success: boolean;
@@ -37,7 +39,7 @@ export async function PaymentIntentCreate(request: NextRequest) {
 
         if (existingEnrollment) {
             if (existingEnrollment.accessType === "half" && accessType === "full") {
-                // upgrade allowed — continue
+                // upgrade allowed
             } else {
                 return NextResponse.json({ success: false, error: "You are already enrolled in this course.", alreadyEnrolled: true }, { status: 400 });
             }
@@ -51,11 +53,11 @@ export async function PaymentIntentCreate(request: NextRequest) {
 
         let chargeAmount: number;
         if (existingEnrollment?.accessType === "half" && accessType === "full") {
-            chargeAmount = Math.round(fullPrice / 2); // upgrade: remaining half
+            chargeAmount = Math.round(fullPrice / 2);
         } else if (accessType === "half") {
-            chargeAmount = Math.round(fullPrice / 2); // new half
+            chargeAmount = Math.round(fullPrice / 2);
         } else {
-            chargeAmount = fullPrice;                 // new full
+            chargeAmount = fullPrice;
         }
 
         const paymentIntent = await stripe.paymentIntents.create({
@@ -74,7 +76,7 @@ export async function PaymentIntentCreate(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────
-// ENROLL IN COURSE
+// ENROLL IN COURSE (Stripe)
 // ─────────────────────────────────────────────
 export async function EnrollInCourse(request: NextRequest) {
     try {
@@ -102,13 +104,38 @@ export async function EnrollInCourse(request: NextRequest) {
             accessType, status: "active", progress: 0,
         });
 
+        // ── Notifications (Stripe enrollment) ──
+        try {
+            const course = await Course.findById(courseId).select("title").lean() as any;
+            if (course) {
+                // Student
+                await createNotification({
+                    userId: auth.user.userId,
+                    type: "enrollment",
+                    title: "🎉 Enrollment Successful!",
+                    message: `You are now enrolled in "${course.title}". ${accessType === "half" ? "First 50% content unlocked." : "All content unlocked. Happy learning!"}`,
+                    meta: { courseId },
+                });
+                // Admin
+                const admin = await User.findOne({ role: "admin" }).lean() as any;
+                if (admin) {
+                    await createNotification({
+                        userId: admin._id.toString(),
+                        type: "new_student",
+                        title: "🎓 New Enrollment",
+                        message: `A student just enrolled in "${course.title}" via card payment.`,
+                        meta: { courseId },
+                    });
+                }
+            }
+        } catch (notifErr) { console.error("Enrollment notification failed:", notifErr); }
+
         return NextResponse.json({ success: true, enrollment, accessType });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 
-// ─────────────────────────────────────────────
 // ─────────────────────────────────────────────
 // CHECK ENROLLMENT
 // ─────────────────────────────────────────────
@@ -128,11 +155,7 @@ export async function CheckEnrollment(request: NextRequest) {
         const walletPayment = await Payment.findOne({ user: auth.user.userId, course: courseId });
         const paymentMethod = walletPayment ? "wallet" : "card";
 
-        return NextResponse.json({
-            isEnrolled: true,
-            accessType: enrollment.accessType ?? null,
-            paymentMethod,
-        });
+        return NextResponse.json({ isEnrolled: true, accessType: enrollment.accessType ?? null, paymentMethod });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -158,22 +181,43 @@ export async function WalletVerification(req: Request) {
             receiptUrl, status: "pending",
         });
 
-        // Send pending email
+        // ── Email + Notifications ──
         try {
-            const User = (await import("@/models/User")).User;
-            const Course = (await import("@/models/Course")).Course;
-            const userDoc = await User.findById(userId).select("name email");
-            const courseDoc = await Course.findById(courseId).select("title");
+            const userDoc = await User.findById(userId).select("name email").lean() as any;
+            const courseDoc = await Course.findById(courseId).select("title").lean() as any;
+
+            // Email
             if (userDoc?.email && courseDoc?.title) {
                 await sendPaymentPendingEmail({
                     toEmail: userDoc.email,
                     userName: userDoc.name || "Student",
                     courseName: courseDoc.title,
                     amount: Number(amount),
-                    method: method,
+                    method,
                 });
             }
-        } catch (emailErr) { console.error("Pending email failed:", emailErr); }
+
+            // Student notification
+            await createNotification({
+                userId: userId,
+                type: "payment_pending",
+                title: "⏳ Payment Under Review",
+                message: `Your payment slip for "${courseDoc?.title}" has been received. We'll verify it within 24 hours.`,
+                meta: { paymentId: payment._id.toString(), courseId },
+            });
+
+            // Admin notification
+            const adminUser = await User.findOne({ role: "admin" }).lean() as any;
+            if (adminUser) {
+                await createNotification({
+                    userId: adminUser._id.toString(),
+                    type: "new_payment",
+                    title: "💰 New Payment Slip Received",
+                    message: `${userDoc?.name || "A student"} submitted a payment slip for "${courseDoc?.title}". PKR ${amount} via ${method}.`,
+                    meta: { paymentId: payment._id.toString(), courseId, studentId: userId },
+                });
+            }
+        } catch (notifErr) { console.error("Wallet pending notif failed:", notifErr); }
 
         return NextResponse.json({ success: true, message: "Slip uploaded & submitted successfully!", data: payment });
     } catch (error: any) {
@@ -265,7 +309,9 @@ export async function GetAdminWalletPayments(request: NextRequest) {
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}// ─────────────────────────────────────────────
+}
+
+// ─────────────────────────────────────────────
 // APPROVE WALLET PAYMENT (Admin)
 // ─────────────────────────────────────────────
 export async function ApproveWalletPayment(request: NextRequest) {
@@ -287,7 +333,6 @@ export async function ApproveWalletPayment(request: NextRequest) {
         const userObj: any = payment.user;
         const courseObj: any = payment.course;
 
-        // ✅ Update payment + enrollment
         payment.status = "approved";
         await payment.save();
 
@@ -296,6 +341,8 @@ export async function ApproveWalletPayment(request: NextRequest) {
             { accessType, status: "active", progress: 0 },
             { upsert: true, new: true }
         );
+
+        // ── Email ──
         try {
             if (userObj?.email && courseObj?.title) {
                 await sendPaymentApprovedEmail({
@@ -306,9 +353,18 @@ export async function ApproveWalletPayment(request: NextRequest) {
                     accessType: accessType as "half" | "full",
                 });
             }
-        } catch (emailErr) {
-            console.error("Approval email failed:", emailErr);
-        }
+        } catch (emailErr) { console.error("Approval email failed:", emailErr); }
+
+        // ── Notification ──
+        try {
+            await createNotification({
+                userId: userObj._id.toString(),
+                type: "payment_approved",
+                title: "✅ Payment Approved!",
+                message: `Your payment for "${courseObj.title}" has been approved. ${accessType === "half" ? "You have access to first 50% videos." : "You have full access to all videos!"} 🎉`,
+                meta: { paymentId, courseId: courseObj._id.toString() },
+            });
+        } catch (notifErr) { console.error("Approval notification failed:", notifErr); }
 
         return NextResponse.json({ success: true, message: "Payment approved & access granted!" });
     } catch (error: any) {
@@ -341,6 +397,7 @@ export async function RejectWalletPayment(request: NextRequest) {
         const userObj: any = payment.user;
         const courseObj: any = payment.course;
 
+        // ── Email ──
         try {
             if (userObj?.email && courseObj?.title) {
                 await sendPaymentRejectedEmail({
@@ -350,9 +407,18 @@ export async function RejectWalletPayment(request: NextRequest) {
                     amount: (payment as any).amount,
                 });
             }
-        } catch (emailErr) {
-            console.error("Rejection email failed:", emailErr);
-        }
+        } catch (emailErr) { console.error("Rejection email failed:", emailErr); }
+
+        // ── Notification ──
+        try {
+            await createNotification({
+                userId: userObj._id.toString(),
+                type: "payment_rejected",
+                title: "❌ Payment Rejected",
+                message: `Your payment for "${courseObj.title}" could not be verified. Please try again with a clear screenshot.`,
+                meta: { paymentId, courseId: courseObj._id.toString() },
+            });
+        } catch (notifErr) { console.error("Rejection notification failed:", notifErr); }
 
         return NextResponse.json({ success: true, message: "Payment rejected & email sent!" });
     } catch (error: any) {
