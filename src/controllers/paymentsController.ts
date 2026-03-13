@@ -1,3 +1,4 @@
+// src/controllers/paymentController.ts
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import validateRequest from "@/middleware/authMiddleware";
@@ -10,15 +11,15 @@ import cloudinary from "@/configs/cloudinary";
 import {
     sendPaymentApprovedEmail,
     sendPaymentRejectedEmail,
-    sendPaymentPendingEmail
+    sendPaymentPendingEmail,
 } from "@/lib/emailService";
-import { createNotification } from "@/controllers/notificationController";
 import { User } from "@/models/User";
+import { createNotification } from "@/controllers/notificationController";
 
 interface AuthResult {
     success: boolean;
     error?: string;
-    user: { userId: string; email?: string; role?: string; };
+    user: { userId: string; email?: string; role?: string };
 }
 
 // ─────────────────────────────────────────────
@@ -35,13 +36,12 @@ export async function PaymentIntentCreate(request: NextRequest) {
         if (!courseId || !mongoose.Types.ObjectId.isValid(courseId))
             return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
 
-        const existingEnrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
-
-        if (existingEnrollment) {
-            if (existingEnrollment.accessType === "half" && accessType === "full") {
+        const existing = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
+        if (existing) {
+            if (existing.accessType === "half" && accessType === "full") {
                 // upgrade allowed
             } else {
-                return NextResponse.json({ success: false, error: "You are already enrolled in this course.", alreadyEnrolled: true }, { status: 400 });
+                return NextResponse.json({ success: false, error: "Already enrolled", alreadyEnrolled: true }, { status: 400 });
             }
         }
 
@@ -50,24 +50,17 @@ export async function PaymentIntentCreate(request: NextRequest) {
 
         const discount = course.discount || 0;
         const fullPrice = Math.round(course.price - (course.price * discount) / 100);
+        let chargeAmount = fullPrice;
+        if (existing?.accessType === "half" && accessType === "full") chargeAmount = Math.round(fullPrice / 2);
+        else if (accessType === "half") chargeAmount = Math.round(fullPrice / 2);
 
-        let chargeAmount: number;
-        if (existingEnrollment?.accessType === "half" && accessType === "full") {
-            chargeAmount = Math.round(fullPrice / 2);
-        } else if (accessType === "half") {
-            chargeAmount = Math.round(fullPrice / 2);
-        } else {
-            chargeAmount = fullPrice;
-        }
-
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: chargeAmount * 100,
-            currency: "pkr",
+        const intent = await stripe.paymentIntents.create({
+            amount: chargeAmount * 100, currency: "pkr",
             metadata: { courseId, userId: auth.user.userId, courseName: course.title, accessType },
         });
 
         return NextResponse.json({
-            success: true, clientSecret: paymentIntent.client_secret,
+            success: true, clientSecret: intent.client_secret,
             amount: chargeAmount, fullAmount: fullPrice, accessType,
         });
     } catch (error: any) {
@@ -76,7 +69,7 @@ export async function PaymentIntentCreate(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────
-// ENROLL IN COURSE (Stripe)
+// ENROLL IN COURSE — Card / Stripe
 // ─────────────────────────────────────────────
 export async function EnrollInCourse(request: NextRequest) {
     try {
@@ -88,47 +81,67 @@ export async function EnrollInCourse(request: NextRequest) {
         if (!courseId || !mongoose.Types.ObjectId.isValid(courseId))
             return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
 
-        const existingEnrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
+        const [courseDoc, studentDoc] = await Promise.all([
+            Course.findById(courseId).select("title").lean() as any,
+            User.findById(auth.user.userId).select("name email").lean() as any,
+        ]);
 
-        if (existingEnrollment) {
-            if (existingEnrollment.accessType === "half" && accessType === "full") {
-                existingEnrollment.accessType = "full";
-                await existingEnrollment.save();
-                return NextResponse.json({ success: true, upgraded: true, accessType: "full", message: "Access upgraded to full!" });
+        const courseTitle = courseDoc?.title || "the course";
+        const studentName = studentDoc?.name || "A student";
+        const studentEmail = studentDoc?.email || "";
+        const accessText = accessType === "half" ? "50% Half Access" : "Full Access";
+
+        const existing = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
+
+        // ── UPGRADE: half → full ──
+        if (existing) {
+            if (existing.accessType === "half" && accessType === "full") {
+                existing.accessType = "full";
+                await existing.save();
+
+                // Student
+                await createNotification({
+                    userId: auth.user.userId, type: "enrollment",
+                    title: "⬆️ Upgrade Successful!",
+                    message: `You upgraded to Full Access for "${courseTitle}" via Card. All videos unlocked! 🎉`,
+                    meta: { courseId },
+                });
+                // Admin
+                const admin = await User.findOne({ role: "admin" }).select("_id").lean() as any;
+                if (admin) await createNotification({
+                    userId: admin._id.toString(), type: "new_student",
+                    title: `⬆️ Upgrade — ${courseTitle}`,
+                    message: `${studentName} (${studentEmail}) upgraded to Full Access for "${courseTitle}" via Card.`,
+                    meta: { courseId, studentId: auth.user.userId },
+                });
+
+                return NextResponse.json({ success: true, upgraded: true, accessType: "full", message: "Upgraded!" });
             }
             return NextResponse.json({ success: false, error: "Already enrolled" }, { status: 400 });
         }
 
+        // ── FRESH ENROLLMENT ──
         const enrollment = await Enrollment.create({
             user: auth.user.userId, course: courseId,
             accessType, status: "active", progress: 0,
         });
 
-        // ── Notifications (Stripe enrollment) ──
-        try {
-            const course = await Course.findById(courseId).select("title").lean() as any;
-            if (course) {
-                // Student
-                await createNotification({
-                    userId: auth.user.userId,
-                    type: "enrollment",
-                    title: "🎉 Enrollment Successful!",
-                    message: `You are now enrolled in "${course.title}". ${accessType === "half" ? "First 50% content unlocked." : "All content unlocked. Happy learning!"}`,
-                    meta: { courseId },
-                });
-                // Admin
-                const admin = await User.findOne({ role: "admin" }).lean() as any;
-                if (admin) {
-                    await createNotification({
-                        userId: admin._id.toString(),
-                        type: "new_student",
-                        title: "🎓 New Enrollment",
-                        message: `A student just enrolled in "${course.title}" via card payment.`,
-                        meta: { courseId },
-                    });
-                }
-            }
-        } catch (notifErr) { console.error("Enrollment notification failed:", notifErr); }
+        // ✅ Student — card enrollment
+        await createNotification({
+            userId: auth.user.userId, type: "enrollment",
+            title: "Enrollment Successful! (Card)",
+            message: `You enrolled in "${courseTitle}" via Card. ${accessType === "half" ? "First 50% unlocked." : "All content unlocked. Happy learning!"}`,
+            meta: { courseId },
+        });
+
+        // ✅ Admin — card enrollment details
+        const admin = await User.find({ role: "admin" }).select("_id").lean() as any;
+        if (admin) await createNotification({
+            userId: admin._id.toString(), type: "new_student",
+            title: `💳 Card Enrollment — ${courseTitle}`,
+            message: `${studentName} (${studentEmail}) enrolled in "${courseTitle}" via Card. Access: ${accessText}.`,
+            meta: { courseId, studentId: auth.user.userId },
+        });
 
         return NextResponse.json({ success: true, enrollment, accessType });
     } catch (error: any) {
@@ -143,19 +156,31 @@ export async function CheckEnrollment(request: NextRequest) {
     try {
         await dbConnect();
         const auth = await validateRequest(request) as AuthResult;
+
         if (!auth.success) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
 
-        const url = new URL(request.url);
-        const courseId = url.searchParams.get("courseId");
+        const courseId = new URL(request.url).searchParams.get("courseId");
+
         if (!courseId) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
 
-        const enrollment = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
-        if (!enrollment) return NextResponse.json({ isEnrolled: false, accessType: null, paymentMethod: null });
+        const enrollment = await Enrollment.findOne({
+            user: auth.user.userId, course:
+                courseId
+        });
+        if (!enrollment) return NextResponse.json({
+            isEnrolled: false, accessType: null,
+            paymentMethod: null
+        });
 
-        const walletPayment = await Payment.findOne({ user: auth.user.userId, course: courseId });
-        const paymentMethod = walletPayment ? "wallet" : "card";
-
-        return NextResponse.json({ isEnrolled: true, accessType: enrollment.accessType ?? null, paymentMethod });
+        const walletPayment = await Payment.findOne({
+            user: auth.user.userId, course:
+                courseId
+        });
+        return NextResponse.json({
+            isEnrolled: true,
+            accessType: enrollment.accessType ?? null,
+            paymentMethod: walletPayment ? "wallet" : "card",
+        });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -167,61 +192,56 @@ export async function CheckEnrollment(request: NextRequest) {
 export async function WalletVerification(req: Request) {
     try {
         await dbConnect();
-        const body = await req.json();
-        const { courseId, method, phone, amount, userId, image } = body;
+        const { courseId, method, phone, amount, userId, image, accessType = "full" } = await req.json();
+        if (!image) return NextResponse.json({ success: false, message: "Screenshot required." }, { status: 400 });
 
-        if (!image) return NextResponse.json({ success: false, message: "Payment screenshot is required." }, { status: 400 });
-
-        const uploadResponse = await cloudinary.uploader.upload(image, { folder: "lms_slips" });
-        const receiptUrl = uploadResponse.secure_url;
+        const upload = await cloudinary.uploader.upload(image, { folder: "lms_slips" });
 
         const payment = await Payment.create({
             user: userId, course: courseId, amount,
             paymentMethod: method, senderPhone: phone,
-            receiptUrl, status: "pending",
+            receiptUrl: upload.secure_url, status: "pending", accessType,
         });
 
-        // ── Email + Notifications ──
+        const [userDoc, courseDoc] = await Promise.all([
+            User.findById(userId).select("name email").lean() as any,
+            Course.findById(courseId).select("title").lean() as any,
+        ]);
+
+        const courseTitle = courseDoc?.title || "the course";
+        const studentName = userDoc?.name || "A student";
+        const studentEmail = userDoc?.email || "";
+        const accessText = accessType === "half" ? "50% Half Access" : "Full Access";
+        const methodUpper = method?.toUpperCase() || "WALLET";
+
+        // Email
         try {
-            const userDoc = await User.findById(userId).select("name email").lean() as any;
-            const courseDoc = await Course.findById(courseId).select("title").lean() as any;
-
-            // Email
-            if (userDoc?.email && courseDoc?.title) {
-                await sendPaymentPendingEmail({
-                    toEmail: userDoc.email,
-                    userName: userDoc.name || "Student",
-                    courseName: courseDoc.title,
-                    amount: Number(amount),
-                    method,
-                });
-            }
-
-            // Student notification
-            await createNotification({
-                userId: userId,
-                type: "payment_pending",
-                title: "⏳ Payment Under Review",
-                message: `Your payment slip for "${courseDoc?.title}" has been received. We'll verify it within 24 hours.`,
-                meta: { paymentId: payment._id.toString(), courseId },
+            if (userDoc?.email) await sendPaymentPendingEmail({
+                toEmail: userDoc.email, userName: studentName,
+                courseName: courseTitle, amount: Number(amount), method,
             });
+        } catch (e) { console.error("Email failed:", e); }
 
-            // Admin notification
-            const adminUser = await User.findOne({ role: "admin" }).lean() as any;
-            if (adminUser) {
-                await createNotification({
-                    userId: adminUser._id.toString(),
-                    type: "new_payment",
-                    title: "💰 New Payment Slip Received",
-                    message: `${userDoc?.name || "A student"} submitted a payment slip for "${courseDoc?.title}". PKR ${amount} via ${method}.`,
-                    meta: { paymentId: payment._id.toString(), courseId, studentId: userId },
-                });
-            }
-        } catch (notifErr) { console.error("Wallet pending notif failed:", notifErr); }
+        // ✅ Student — pending
+        await createNotification({
+            userId, type: "payment_pending",
+            title: "⏳ Payment Under Review",
+            message: `Your PKR ${amount} via ${methodUpper} for "${courseTitle}" (${accessText}) received. Verification within 24hrs.`,
+            meta: { paymentId: payment._id.toString(), courseId },
+        });
 
-        return NextResponse.json({ success: true, message: "Slip uploaded & submitted successfully!", data: payment });
+        // ✅ Admin — new wallet payment
+        const admin = await User.find({ role: "admin" }).select("_id").lean() as any;
+        if (admin) await createNotification({
+            userId: admin._id.toString(), type: "new_payment",
+            title: `💰 New Payment — ${methodUpper}`,
+            message: `${studentName} (${studentEmail}) paid PKR ${amount} via ${methodUpper} for "${courseTitle}". Requesting: ${accessText}.`,
+            meta: { paymentId: payment._id.toString(), courseId, studentId: userId },
+        });
+
+        return NextResponse.json({ success: true, message: "Slip submitted!", data: payment });
     } catch (error: any) {
-        return NextResponse.json({ success: false, message: error.message || "Internal Server Error" }, { status: 500 });
+        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
     }
 }
 
@@ -231,17 +251,17 @@ export async function WalletVerification(req: Request) {
 export const getAdminRevenue = async (req: Request) => {
     try {
         await dbConnect();
-        const authResult = await validateRequest(req);
-        if (!authResult.success || !authResult.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const auth = await validateRequest(req);
+        if (!auth.success || !auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const walletPayments = await Payment.find({ status: "approved" });
-        const walletRevenue = walletPayments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
-        const walletPairs = walletPayments.map((p: any) => `${p.user?.toString()}_${p.course?.toString()}`);
+        const walletRevenue = walletPayments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
+        const walletPairs = walletPayments.map((p: any) => `${p.user}_${p.course}`);
         const allEnrollments = await Enrollment.find({}).populate("course", "price");
-        const stripeEnrollments = allEnrollments.filter((e: any) => !walletPairs.includes(`${e.user?.toString()}_${e.course?.toString()}`));
-        const stripeRevenue = stripeEnrollments.reduce((sum: number, e: any) => {
+        const stripeEnrollments = allEnrollments.filter((e: any) => !walletPairs.includes(`${e.user}_${e.course}`));
+        const stripeRevenue = stripeEnrollments.reduce((s: number, e: any) => {
             const price = Number(e.course?.price) || 0;
-            return sum + (e.accessType === "half" ? Math.round(price / 2) : price);
+            return s + (e.accessType === "half" ? Math.round(price / 2) : price);
         }, 0);
 
         return NextResponse.json({
@@ -256,31 +276,27 @@ export const getAdminRevenue = async (req: Request) => {
 export const getCoursesState = async (req: Request) => {
     try {
         await dbConnect();
-        const authResult = await validateRequest(req);
-        if (!authResult.success || !authResult.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const auth = await validateRequest(req);
+        if (!auth.success || !auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const enrollments = await Enrollment.find({}).populate("course", "price title");
         const walletPayments = await Payment.find({ status: "approved" }).lean();
-        const walletPairs = walletPayments.map((p: any) => `${p.user?.toString()}_${p.course?.toString()}`);
+        const walletPairs = walletPayments.map((p: any) => `${p.user}_${p.course}`);
         const stateMap: Record<string, { students: number; revenue: number }> = {};
 
         enrollments.forEach((e: any) => {
-            const courseId = e.course?._id?.toString();
-            if (!courseId) return;
-            if (!stateMap[courseId]) stateMap[courseId] = { students: 0, revenue: 0 };
-            stateMap[courseId].students += 1;
-            const pair = `${e.user?.toString()}_${courseId}`;
-            if (!walletPairs.includes(pair)) {
+            const cid = e.course?._id?.toString(); if (!cid) return;
+            if (!stateMap[cid]) stateMap[cid] = { students: 0, revenue: 0 };
+            stateMap[cid].students++;
+            if (!walletPairs.includes(`${e.user}_${cid}`)) {
                 const price = Number(e.course?.price) || 0;
-                stateMap[courseId].revenue += e.accessType === "half" ? Math.round(price / 2) : price;
+                stateMap[cid].revenue += e.accessType === "half" ? Math.round(price / 2) : price;
             }
         });
-
         walletPayments.forEach((p: any) => {
-            const courseId = p.course?.toString();
-            if (!courseId) return;
-            if (!stateMap[courseId]) stateMap[courseId] = { students: 0, revenue: 0 };
-            stateMap[courseId].revenue += Number(p.amount) || 0;
+            const cid = p.course?.toString(); if (!cid) return;
+            if (!stateMap[cid]) stateMap[cid] = { students: 0, revenue: 0 };
+            stateMap[cid].revenue += Number(p.amount) || 0;
         });
 
         return NextResponse.json({ success: true, stats: stateMap });
@@ -290,7 +306,7 @@ export const getCoursesState = async (req: Request) => {
 };
 
 // ─────────────────────────────────────────────
-// GET ALL WALLET PAYMENTS (Admin)
+// GET ALL WALLET PAYMENTS
 // ─────────────────────────────────────────────
 export async function GetAdminWalletPayments(request: NextRequest) {
     try {
@@ -302,8 +318,7 @@ export async function GetAdminWalletPayments(request: NextRequest) {
         const payments = await Payment.find({})
             .populate("user", "name email")
             .populate("course", "title price")
-            .sort({ createdAt: -1 })
-            .lean();
+            .sort({ createdAt: -1 }).lean();
 
         return NextResponse.json({ success: true, data: payments });
     } catch (error: any) {
@@ -312,7 +327,7 @@ export async function GetAdminWalletPayments(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────
-// APPROVE WALLET PAYMENT (Admin)
+// APPROVE WALLET PAYMENT
 // ─────────────────────────────────────────────
 export async function ApproveWalletPayment(request: NextRequest) {
     try {
@@ -322,12 +337,9 @@ export async function ApproveWalletPayment(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const { paymentId } = await request.json();
-
         const payment = await Payment.findById(paymentId)
-            .populate("user", "name email")
-            .populate("course", "title");
-
-        if (!payment) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
+            .populate("user", "name email").populate("course", "title");
+        if (!payment) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
         const accessType = (payment as any).accessType || "full";
         const userObj: any = payment.user;
@@ -342,38 +354,30 @@ export async function ApproveWalletPayment(request: NextRequest) {
             { upsert: true, new: true }
         );
 
-        // ── Email ──
         try {
-            if (userObj?.email && courseObj?.title) {
-                await sendPaymentApprovedEmail({
-                    toEmail: userObj.email,
-                    userName: userObj.name || "Student",
-                    courseName: courseObj.title,
-                    amount: (payment as any).amount,
-                    accessType: accessType as "half" | "full",
-                });
-            }
-        } catch (emailErr) { console.error("Approval email failed:", emailErr); }
-
-        // ── Notification ──
-        try {
-            await createNotification({
-                userId: userObj._id.toString(),
-                type: "payment_approved",
-                title: "✅ Payment Approved!",
-                message: `Your payment for "${courseObj.title}" has been approved. ${accessType === "half" ? "You have access to first 50% videos." : "You have full access to all videos!"} 🎉`,
-                meta: { paymentId, courseId: courseObj._id.toString() },
+            if (userObj?.email) await sendPaymentApprovedEmail({
+                toEmail: userObj.email, userName: userObj.name || "Student",
+                courseName: courseObj.title, amount: (payment as any).amount,
+                accessType: accessType as "half" | "full",
             });
-        } catch (notifErr) { console.error("Approval notification failed:", notifErr); }
+        } catch (e) { console.error("Email failed:", e); }
 
-        return NextResponse.json({ success: true, message: "Payment approved & access granted!" });
+        // ✅ Student
+        await createNotification({
+            userId: userObj._id.toString(), type: "payment_approved",
+            title: "✅ Payment Approved!",
+            message: `Your payment for "${courseObj.title}" approved. You can access ${accessType === "half" ? "first 50% videos" : "all videos"} now. 🎉`,
+            meta: { paymentId, courseId: courseObj._id.toString() },
+        });
+
+        return NextResponse.json({ success: true, message: "Approved!" });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 
 // ─────────────────────────────────────────────
-// REJECT WALLET PAYMENT (Admin)
+// REJECT WALLET PAYMENT
 // ─────────────────────────────────────────────
 export async function RejectWalletPayment(request: NextRequest) {
     try {
@@ -383,44 +387,29 @@ export async function RejectWalletPayment(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const { paymentId } = await request.json();
-
-        const payment = await Payment.findByIdAndUpdate(
-            paymentId,
-            { status: "rejected" },
-            { new: true }
-        )
-            .populate("user", "name email")
-            .populate("course", "title");
-
-        if (!payment) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
+        const payment = await Payment.findByIdAndUpdate(paymentId, { status: "rejected" }, { new: true })
+            .populate("user", "name email").populate("course", "title");
+        if (!payment) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
         const userObj: any = payment.user;
         const courseObj: any = payment.course;
 
-        // ── Email ──
         try {
-            if (userObj?.email && courseObj?.title) {
-                await sendPaymentRejectedEmail({
-                    toEmail: userObj.email,
-                    userName: userObj.name || "Student",
-                    courseName: courseObj.title,
-                    amount: (payment as any).amount,
-                });
-            }
-        } catch (emailErr) { console.error("Rejection email failed:", emailErr); }
-
-        // ── Notification ──
-        try {
-            await createNotification({
-                userId: userObj._id.toString(),
-                type: "payment_rejected",
-                title: "❌ Payment Rejected",
-                message: `Your payment for "${courseObj.title}" could not be verified. Please try again with a clear screenshot.`,
-                meta: { paymentId, courseId: courseObj._id.toString() },
+            if (userObj?.email) await sendPaymentRejectedEmail({
+                toEmail: userObj.email, userName: userObj.name || "Student",
+                courseName: courseObj.title, amount: (payment as any).amount,
             });
-        } catch (notifErr) { console.error("Rejection notification failed:", notifErr); }
+        } catch (e) { console.error("Email failed:", e); }
 
-        return NextResponse.json({ success: true, message: "Payment rejected & email sent!" });
+        // ✅ Student
+        await createNotification({
+            userId: userObj._id.toString(), type: "payment_rejected",
+            title: "❌ Payment Rejected",
+            message: `Your payment for "${courseObj.title}" was rejected. Please re-upload a clear screenshot.`,
+            meta: { paymentId, courseId: courseObj._id.toString() },
+        });
+
+        return NextResponse.json({ success: true, message: "Rejected!" });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

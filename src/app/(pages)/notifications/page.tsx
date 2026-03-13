@@ -98,9 +98,9 @@ export default function NotificationsPage() {
     setLoading(true);
     try {
       const res = (await api.getNotifications()) as any;
-      const data = res?.data ?? res;
-      setNotifications(data?.data ?? []);
-      setUnreadCount(data?.unreadCount ?? 0);
+      // apiClient returns: { success, data: [...], unreadCount }
+      setNotifications(res?.data ?? []);
+      setUnreadCount(res?.unreadCount ?? 0);
     } catch {
       toast.error("Failed to load notifications");
     } finally {

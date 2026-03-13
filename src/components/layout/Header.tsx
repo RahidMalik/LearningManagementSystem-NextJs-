@@ -36,6 +36,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/services/api";
+import NotificationBell from "../NotificationBell";
 
 // ═══════════════════════════════════════════
 //  GlobalSearch — courses + students dropdown
@@ -393,50 +394,11 @@ export const Header = () => {
             </Link>
 
             {/* Notifications */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-[#0a348f] dark:hover:text-blue-400 rounded-full relative outline-none transition-colors">
-                  <Bell size={20} />
-                  <span className="absolute top-1.5 right-1.5 h-4 w-4 bg-red-500 text-white text-[9px] flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 font-bold">
-                    3
-                  </span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-80 rounded-2xl p-2 mt-2 shadow-2xl border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
-              >
-                <DropdownMenuLabel className="font-bold text-slate-800 dark:text-slate-100 p-3">
-                  Notifications
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator className="dark:border-slate-800" />
-                <div className="max-h-64 overflow-y-auto">
-                  <DropdownMenuItem className="p-3 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                    <div className="flex gap-3">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-[#0a348f] dark:text-blue-400 shrink-0">
-                        <BookOpen size={16} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          New Lesson: Auth Hooks
-                        </p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                          Instructor added a new video.
-                        </p>
-                      </div>
-                    </div>
-                  </DropdownMenuItem>
-                </div>
-                <div className="p-2 pt-3 border-t border-slate-100 dark:border-slate-800 mt-2">
-                  <Link href="/notifications" className="block w-full">
-                    <button className="w-full flex items-center justify-center gap-1 py-2 text-xs font-bold text-[#0a348f] dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all">
-                      View all notifications <ChevronRight size={14} />
-                    </button>
-                  </Link>
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center">
+              <NotificationBell />
+            </div>
 
+            {/* Profile */}
             <Link href="/settings" className="hidden lg:block">
               <button className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-[#0a348f] dark:hover:text-blue-400 rounded-full transition-colors">
                 <Settings size={20} />

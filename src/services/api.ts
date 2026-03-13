@@ -121,11 +121,11 @@ export const api = {
             method: "POST",
             data: formData,
         });
-
-        // ==========================================
-        //           Messages Logic
-        // ==========================================
     },
+
+    // ==========================================
+    //           Messages Logic
+    // ==========================================
     getConversations: async (): Promise<ApiResponse<IConversation[]>> => {
         return await apiClient.request<IConversation[]>('/messages/conversation', {
             method: 'GET',

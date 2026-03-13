@@ -177,7 +177,7 @@ export default function CourseDetailPage() {
         comment: reviewText.trim(),
       });
       if ((res as any)?.success || (res as any)?.review) {
-        toast.success(myReview ? "Review updated! ✨" : "Review submitted! ✨");
+        toast.success(myReview ? "Review updated!" : "Review submitted!");
         fetchReviews();
       } else {
         toast.error((res as any)?.error || "Failed to submit review");

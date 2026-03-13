@@ -1,16 +1,25 @@
 // src/controllers/notificationController.ts
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/configs/mongodb";
 import validateRequest from "@/middleware/authMiddleware";
-import { Notification } from "@/models/Notification";
+import { Notification, INotification } from "@/models/Notification";
+import { pushNotificationToUser } from "@/app/api/notifications/stream/route";
 
 interface AuthResult {
     success: boolean;
     user: { userId: string; role?: string };
 }
 
+function uidQuery(uid: string) {
+    if (!mongoose.Types.ObjectId.isValid(uid)) return uid;
+    const oid = new mongoose.Types.ObjectId(uid);
+    return { $in: [oid, uid] };
+}
+
 // ─────────────────────────────────────────────
-// Helper — create notification (internal use)
+// INTERNAL HELPER — paymentController use karta hai
+// DB mein save + SSE se live push
 // ─────────────────────────────────────────────
 export async function createNotification({
     userId, type, title, message, meta = {}
@@ -22,14 +31,31 @@ export async function createNotification({
     meta?: object;
 }) {
     try {
-        await Notification.create({ userId, type, title, message, meta });
-    } catch (e) {
-        console.error("Notification create failed:", e);
+        await dbConnect();
+        const uid = mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId;
+
+        // 1. DB mein save
+        const saved = await Notification.create({
+            userId: uid, type, title, message, meta, read: false
+        });
+        console.log(`✅ Notification saved | ${userId} | ${type}`);
+
+        // 2. Live push via SSE
+        pushNotificationToUser(userId, {
+            _id: saved._id.toString(),
+            type, title, message,
+            read: false,
+            createdAt: saved.createdAt,
+            meta,
+        });
+    } catch (e: any) {
+        console.error("❌ createNotification failed:", e.message);
     }
 }
 
 // ─────────────────────────────────────────────
-// GET notifications — logged in user ka
 // GET /api/notifications
 // ─────────────────────────────────────────────
 export async function getNotifications(request: NextRequest) {
@@ -38,15 +64,12 @@ export async function getNotifications(request: NextRequest) {
         const auth = await validateRequest(request) as AuthResult;
         if (!auth.success) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        const notifications = await Notification.find({ userId: auth.user.userId })
-            .sort({ createdAt: -1 })
-            .limit(50)
-            .lean();
+        const query = uidQuery(auth.user.userId);
 
-        const unreadCount = await Notification.countDocuments({
-            userId: auth.user.userId,
-            read: false,
-        });
+        const [notifications, unreadCount] = await Promise.all([
+            Notification.find({ userId: query }).sort({ createdAt: -1 }).limit(50).lean(),
+            Notification.countDocuments({ userId: query, read: false }),
+        ]);
 
         return NextResponse.json({ success: true, data: notifications, unreadCount });
     } catch (error: any) {
@@ -55,7 +78,6 @@ export async function getNotifications(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────
-// MARK ALL AS READ
 // PUT /api/notifications/read
 // ─────────────────────────────────────────────
 export async function markAllRead(request: NextRequest) {
@@ -65,10 +87,9 @@ export async function markAllRead(request: NextRequest) {
         if (!auth.success) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         await Notification.updateMany(
-            { userId: auth.user.userId, read: false },
+            { userId: uidQuery(auth.user.userId), read: false },
             { read: true }
         );
-
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -76,7 +97,6 @@ export async function markAllRead(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────
-// DELETE one notification
 // DELETE /api/notifications?id=xxx
 // ─────────────────────────────────────────────
 export async function deleteNotification(request: NextRequest) {
@@ -88,12 +108,12 @@ export async function deleteNotification(request: NextRequest) {
         const id = new URL(request.url).searchParams.get("id");
         if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-        await Notification.findOneAndDelete({ _id: id, userId: auth.user.userId });
+        await Notification.findOneAndDelete({
+            _id: id,
+            userId: uidQuery(auth.user.userId)
+        });
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
-
-// Fix type reference
-import type { INotification } from "@/models/Notification";
