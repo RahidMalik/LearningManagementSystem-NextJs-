@@ -41,7 +41,7 @@ export async function sendWalletInstructionsEmail(req: NextRequest) {
             `,
         });
 
-        // ✅ 2. Admin ko notification — user details ke saath
+        // 2. send email to admin of user detail
         await transporter.sendMail({
             from: `"LMS Academy" <${process.env.EMAIL_USER}>`,
             to: process.env.EMAIL_USER,

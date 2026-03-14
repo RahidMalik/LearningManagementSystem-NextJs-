@@ -9,6 +9,9 @@ import { Payment } from "@/models/Payment";
 import { NextRequest } from "next/server";
 import validateRequest from "@/middleware/authMiddleware";
 import Stripe from "stripe";
+import { createNotification } from "./notificationController";
+import { User } from "@/models/User";
+import { sendCardPaymentSuccessEmail } from "@/lib/emailService";
 
 interface AuthResult {
     success: boolean;
@@ -208,7 +211,6 @@ export const getCourseDetails = async (req: Request, { params }: { params: any }
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 };
-
 // ============================================================
 // 6. ENROLL COURSE
 // ============================================================
@@ -217,30 +219,105 @@ export const enrollCourse = async (req: CourseData) => {
         await dbConnect();
         const { userId, courseId, accessType = "full" } = req;
 
-        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) return NextResponse.json({ error: "Invalid User ID" }, { status: 400 });
-        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId))
+            return NextResponse.json({ error: "Invalid User ID" }, { status: 400 });
+        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId))
+            return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
 
-        const courseExist = await Course.findById(courseId);
-        if (!courseExist) return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
+        const courseExist = await Course.findById(courseId).lean() as any;
+        if (!courseExist)
+            return NextResponse.json({ error: "Course Not Found" }, { status: 404 });
+
+        const [studentDoc, adminDoc] = await Promise.all([
+            User.findById(userId).select("name email").lean() as any,
+            User.findOne({ role: "admin" }).select("_id").lean() as any,
+        ]);
+
+        const courseTitle = courseExist.title || "the course";
+        const studentName = studentDoc?.name || "A student";
+        const studentEmail = studentDoc?.email || "";
+        const accessText = accessType === "half" ? "50% Half Access" : "Full Access";
 
         const existing = await Enrollment.findOne({ user: userId, course: courseId });
+
+        // ── UPGRADE: half → full ──
         if (existing) {
             if (existing.accessType === "half" && accessType === "full") {
                 await Enrollment.updateOne({ _id: existing._id }, { $set: { accessType: "full" } });
-                return NextResponse.json({ success: true, message: "Access upgraded to full!", upgraded: true, accessType: "full" }, { status: 200 });
+
+                // Card email — upgrade
+                if (studentEmail) {
+                    await sendCardPaymentSuccessEmail({
+                        toEmail: studentEmail,
+                        userName: studentName,
+                        courseName: courseTitle,
+                        amount: courseExist.price,
+                        accessType: "full",
+                    }).catch(e => console.error("Card upgrade email failed:", e));
+                }
+
+                // Student notification
+                await createNotification({
+                    userId, type: "enrollment",
+                    title: "⬆️ Upgrade Successful!",
+                    message: `You upgraded to Full Access for "${courseTitle}" via Card. All videos unlocked! 🎉`,
+                    meta: { courseId },
+                });
+                // Admin notification
+                if (adminDoc) await createNotification({
+                    userId: adminDoc._id.toString(), type: "new_student",
+                    title: `⬆️ Upgrade — ${courseTitle}`,
+                    message: `${studentName} (${studentEmail}) upgraded to Full Access for "${courseTitle}" via Card.`,
+                    meta: { courseId, studentId: userId },
+                });
+
+                return NextResponse.json({
+                    success: true, message: "Access upgraded to full!",
+                    upgraded: true, accessType: "full",
+                }, { status: 200 });
             }
-            return NextResponse.json({ success: true, message: "Already enrolled", alreadyEnrolled: true }, { status: 200 });
+
+            return NextResponse.json({
+                success: true, message: "Already enrolled", alreadyEnrolled: true,
+            }, { status: 200 });
         }
 
+        // ── FRESH ENROLLMENT ──
         const created = await Enrollment.create({ user: userId, course: courseId, progress: 0, accessType });
         const enrolled = await Enrollment.findById(created._id).populate("course").lean();
 
+        //  Card email — fresh enrollment
+        if (studentEmail) {
+            await sendCardPaymentSuccessEmail({
+                toEmail: studentEmail,
+                userName: studentName,
+                courseName: courseTitle,
+                amount: courseExist.price,
+                accessType,
+            }).catch(e => console.error("Card enrollment email failed:", e));
+        }
+
+        // Student notification
+        await createNotification({
+            userId, type: "enrollment",
+            title: "🎉 Enrollment Successful! (Card)",
+            message: `You enrolled in "${courseTitle}" via Card. ${accessType === "half" ? "First 50% unlocked." : "All content unlocked. Happy learning!"}`,
+            meta: { courseId },
+        });
+        // Admin notification
+        if (adminDoc) await createNotification({
+            userId: adminDoc._id.toString(), type: "new_student",
+            title: `💳 New Card Enrollment — ${courseTitle}`,
+            message: `${studentName} (${studentEmail}) enrolled in "${courseTitle}" via Card. Access: ${accessText}.`,
+            meta: { courseId, studentId: userId },
+        });
+
         return NextResponse.json({ success: true, data: enrolled || [] }, { status: 201 });
+
     } catch (error: any) {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 };
-
 // ─────────────────────────────────────────────
 // CREATE PAYMENT INTENT
 // ─────────────────────────────────────────────

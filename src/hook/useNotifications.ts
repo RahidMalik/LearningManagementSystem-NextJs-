@@ -1,4 +1,4 @@
-// src/hooks/useNotifications.ts
+// src/hook/useNotifications.ts
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -23,20 +23,14 @@ export function useNotifications(userId?: string) {
     const esRef = useRef<EventSource | null>(null);
 
     // ── DB se fetch ──
-    // ── DB se fetch ──
     const fetchNotifications = useCallback(async () => {
         setLoading(true);
         try {
             const res = await api.getNotifications() as any;
-
-            const payload = res?.data?.success !== undefined ? res.data : res;
-
-            setNotifications(payload?.data ?? []);
-            setUnreadCount(payload?.unreadCount ?? 0);
-        } catch {
-        } finally {
-            setLoading(false);
-        }
+            setNotifications(res?.data ?? []);
+            setUnreadCount(res?.unreadCount ?? 0);
+        } catch { /* silent */ }
+        finally { setLoading(false); }
     }, []);
 
     useEffect(() => {
@@ -48,7 +42,7 @@ export function useNotifications(userId?: string) {
     // ── SSE — live notifications ──
     useEffect(() => {
         if (!userId) return;
-        if (esRef.current) return; // already connected
+        if (esRef.current) return;
 
         const es = new EventSource("/api/notifications/stream");
         esRef.current = es;
@@ -62,7 +56,6 @@ export function useNotifications(userId?: string) {
                 });
                 setUnreadCount((c) => c + 1);
 
-                // Toast by type
                 if (notif.type === "payment_approved") {
                     toast.success(notif.title, { duration: 5000 });
                 } else if (notif.type === "payment_rejected") {
@@ -81,6 +74,7 @@ export function useNotifications(userId?: string) {
         };
     }, [userId]);
 
+    // ── Mark ALL read ──
     const markAllRead = useCallback(async () => {
         try {
             await api.markAllNotificationsRead();
@@ -89,6 +83,18 @@ export function useNotifications(userId?: string) {
         } catch { toast.error("Failed"); }
     }, []);
 
+    // ── Mark ONE read (click pe) ──
+    const markOneRead = useCallback(async (id: string) => {
+        try {
+            await api.markNotificationRead(id);
+            setNotifications((prev) =>
+                prev.map((n) => n._id === id ? { ...n, read: true } : n)
+            );
+            setUnreadCount((c) => Math.max(0, c - 1));
+        } catch { /* silent */ }
+    }, []);
+
+    // ── Delete ──
     const deleteNotification = useCallback(async (id: string) => {
         try {
             await api.deleteNotification(id);
@@ -100,5 +106,13 @@ export function useNotifications(userId?: string) {
         } catch { toast.error("Failed to delete"); }
     }, []);
 
-    return { notifications, unreadCount, loading, fetchNotifications, markAllRead, deleteNotification };
+    return {
+        notifications,
+        unreadCount,
+        loading,
+        fetchNotifications,
+        markAllRead,
+        markOneRead,
+        deleteNotification,
+    };
 }

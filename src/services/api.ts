@@ -175,6 +175,12 @@ export const api = {
     deleteNotification: async (id: string): Promise<ApiResponse<any>> => {
         return await apiClient.request(`/notifications?id=${id}`, { method: "DELETE" });
     },
+    markNotificationRead: async (id: string): Promise<ApiResponse<any>> => {
+        return await apiClient.request("/notifications/read-one", {
+            method: "PUT",
+            data: { id },
+        });
+    },
     // ==========================================
     //           COURSES API LOGIC
     // ==========================================

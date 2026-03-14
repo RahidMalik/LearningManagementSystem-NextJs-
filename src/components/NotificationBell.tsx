@@ -1,9 +1,9 @@
+// src/components/NotificationBell.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
-import { useNotifications } from "@/hook/useNotifications";
-import { api } from "@/services/api";
+import { useNotifications } from "@/context/NotificationContext";
 import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
@@ -27,29 +27,18 @@ function timeAgo(date: string) {
 }
 
 export default function NotificationBell() {
-  const [userId, setUserId] = useState<string | undefined>();
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    api
-      .getProfile()
-      .then((res: any) => {
-        const user = res?.data?.user ?? res?.user ?? res?.data;
-        if (user?._id) setUserId(user._id);
-      })
-      .catch(() => {});
-  }, []);
+  // ✅ Destructure properly — never render the hook object directly
+  const { notifications, unreadCount, loading, markAllRead, markOneRead } =
+    useNotifications();
 
-  const { notifications, unreadCount, markAllRead, loading } =
-    useNotifications(userId);
-
-  // Sirf latest 4 notifications nikaalein dropdown ke liye
   const latestNotifs = notifications.slice(0, 4);
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      {/* ── Bell Icon Button ── */}
+      {/* Bell trigger */}
       <DropdownMenuTrigger asChild>
         <button className="relative inline-flex items-center justify-center p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors outline-none group">
           <Bell
@@ -57,14 +46,14 @@ export default function NotificationBell() {
             className="text-slate-600 dark:text-slate-400 group-hover:text-[#0a348f] dark:group-hover:text-blue-400 transition-colors"
           />
           {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 min-w-4.5 h-4.5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 shadow-sm pointer-events-none">
+            <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 pointer-events-none animate-pulse">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
         </button>
       </DropdownMenuTrigger>
 
-      {/* ── Dropdown Content ── */}
+      {/* Dropdown */}
       <DropdownMenuContent
         align="end"
         className="w-80 sm:w-96 rounded-2xl p-0 mt-2 shadow-2xl border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden"
@@ -73,21 +62,26 @@ export default function NotificationBell() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
           <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">
             Notifications
+            {unreadCount > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                {unreadCount}
+              </span>
+            )}
           </h3>
           {unreadCount > 0 && (
             <button
-              onClick={markAllRead}
-              className="text-[10px] font-bold text-[#0a348f] dark:text-blue-400 hover:underline flex items-center gap-1 transition-all"
+              onClick={() => markAllRead()}
+              className="text-[10px] font-bold text-[#0a348f] dark:text-blue-400 hover:underline flex items-center gap-1"
             >
               <CheckCheck size={12} /> Mark all read
             </button>
           )}
         </div>
 
-        {/* Notifications List */}
-        <div className="flex flex-col max-h-80 overflow-y-auto custom-scrollbar">
+        {/* List */}
+        <div className="flex flex-col max-h-80 overflow-y-auto">
           {loading && notifications.length === 0 ? (
-            <div className="p-8 flex flex-col items-center justify-center gap-2 text-slate-400">
+            <div className="p-8 flex flex-col items-center gap-2 text-slate-400">
               <Loader2 size={20} className="animate-spin text-[#0a348f]" />
               <span className="text-xs font-medium">Loading...</span>
             </div>
@@ -100,6 +94,7 @@ export default function NotificationBell() {
               <div
                 key={notif._id}
                 onClick={() => {
+                  if (!notif.read) markOneRead(notif._id);
                   setOpen(false);
                   router.push("/notifications");
                 }}
@@ -118,15 +113,14 @@ export default function NotificationBell() {
                     >
                       {notif.title}
                     </p>
-                    {/* 🔴 RED DOT FOR UNREAD */}
                     {!notif.read && (
-                      <span className="w-0.5 h-0.5 rounded-full bg-red-500 shrink-0 mt-1 shadow-[0_0_5px_rgba(239,68,68,0.5)]"></span>
+                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-0.5 animate-pulse" />
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                     {notif.message}
                   </p>
-                  <p className="text-[9px] text-slate-400 font-semibold mt-1">
+                  <p className="text-[9px] text-slate-400 font-semibold">
                     {timeAgo(notif.createdAt)}
                   </p>
                 </div>
@@ -135,8 +129,8 @@ export default function NotificationBell() {
           )}
         </div>
 
-        {/* Footer Link */}
-        <div className="p-2 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+        {/* Footer */}
+        <div className="p-2 border-t border-slate-100 dark:border-slate-800">
           <button
             onClick={() => {
               setOpen(false);

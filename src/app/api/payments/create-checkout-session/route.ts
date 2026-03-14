@@ -10,7 +10,7 @@ export async function POST() {
             line_items: [
                 {
                     price_data: {
-                        currency: "usd",
+                        currency: "pkr",
                         product_data: { name: "Test Product" },
                         unit_amount: 5000,
                     },

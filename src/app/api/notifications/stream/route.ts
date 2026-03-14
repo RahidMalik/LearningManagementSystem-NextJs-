@@ -1,18 +1,15 @@
-// src/app/api/notifications/stream/route.ts
-// Pure Next.js SSE — koi express nahi, koi socket server nahi
-
 import { NextRequest } from "next/server";
 import validateRequest from "@/middleware/authMiddleware";
 
-// In-memory map: userId → active SSE controllers
-// Next.js serverless edge pe kaam nahi karta — Node runtime use karo
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const clients = new Map<string, Set<ReadableStreamDefaultController>>();
+const globalForSSE = global as unknown as { sseClients: Map<string, Set<ReadableStreamDefaultController>> };
+const clients = globalForSSE.sseClients || new Map();
+if (process.env.NODE_ENV !== "production") globalForSSE.sseClients = clients;
 
 // ─────────────────────────────────────────────
-// INTERNAL HELPER — paymentController call karta hai
+// INTERNAL HELPER — push live data
 // ─────────────────────────────────────────────
 export function pushNotificationToUser(userId: string, notification: object) {
     const userClients = clients.get(userId);
@@ -34,10 +31,20 @@ export function pushNotificationToUser(userId: string, notification: object) {
 
 // ─────────────────────────────────────────────
 // GET /api/notifications/stream
-// Frontend yahan connect karta hai
 // ─────────────────────────────────────────────
 export async function GET(request: NextRequest) {
-    const auth = await validateRequest(request) as any;
+    const token = request.nextUrl.searchParams.get("token");
+    const headers = new Headers(request.headers);
+    if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    const reqWithAuth = new NextRequest(request.url, {
+        headers,
+        method: request.method,
+    });
+
+    const auth = await validateRequest(reqWithAuth) as any;
     if (!auth.success) return new Response("Unauthorized", { status: 401 });
 
     const userId = auth.user.userId.toString();

@@ -12,6 +12,7 @@ import {
     sendPaymentApprovedEmail,
     sendPaymentRejectedEmail,
     sendPaymentPendingEmail,
+    sendAdminSlipEmail,
 } from "@/lib/emailService";
 import { User } from "@/models/User";
 import { createNotification } from "@/controllers/notificationController";
@@ -69,87 +70,6 @@ export async function PaymentIntentCreate(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────
-// ENROLL IN COURSE — Card / Stripe
-// ─────────────────────────────────────────────
-export async function EnrollInCourse(request: NextRequest) {
-    try {
-        await dbConnect();
-        const auth = await validateRequest(request) as AuthResult;
-        if (!auth.success) return NextResponse.json({ error: auth.error }, { status: 401 });
-
-        const { courseId, accessType = "full" } = await request.json();
-        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId))
-            return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
-
-        const [courseDoc, studentDoc] = await Promise.all([
-            Course.findById(courseId).select("title").lean() as any,
-            User.findById(auth.user.userId).select("name email").lean() as any,
-        ]);
-
-        const courseTitle = courseDoc?.title || "the course";
-        const studentName = studentDoc?.name || "A student";
-        const studentEmail = studentDoc?.email || "";
-        const accessText = accessType === "half" ? "50% Half Access" : "Full Access";
-
-        const existing = await Enrollment.findOne({ user: auth.user.userId, course: courseId });
-
-        // ── UPGRADE: half → full ──
-        if (existing) {
-            if (existing.accessType === "half" && accessType === "full") {
-                existing.accessType = "full";
-                await existing.save();
-
-                // Student
-                await createNotification({
-                    userId: auth.user.userId, type: "enrollment",
-                    title: "⬆️ Upgrade Successful!",
-                    message: `You upgraded to Full Access for "${courseTitle}" via Card. All videos unlocked! 🎉`,
-                    meta: { courseId },
-                });
-                // Admin
-                const admin = await User.findOne({ role: "admin" }).select("_id").lean() as any;
-                if (admin) await createNotification({
-                    userId: admin._id.toString(), type: "new_student",
-                    title: `⬆️ Upgrade — ${courseTitle}`,
-                    message: `${studentName} (${studentEmail}) upgraded to Full Access for "${courseTitle}" via Card.`,
-                    meta: { courseId, studentId: auth.user.userId },
-                });
-
-                return NextResponse.json({ success: true, upgraded: true, accessType: "full", message: "Upgraded!" });
-            }
-            return NextResponse.json({ success: false, error: "Already enrolled" }, { status: 400 });
-        }
-
-        // ── FRESH ENROLLMENT ──
-        const enrollment = await Enrollment.create({
-            user: auth.user.userId, course: courseId,
-            accessType, status: "active", progress: 0,
-        });
-
-        // ✅ Student — card enrollment
-        await createNotification({
-            userId: auth.user.userId, type: "enrollment",
-            title: "Enrollment Successful! (Card)",
-            message: `You enrolled in "${courseTitle}" via Card. ${accessType === "half" ? "First 50% unlocked." : "All content unlocked. Happy learning!"}`,
-            meta: { courseId },
-        });
-
-        // ✅ Admin — card enrollment details
-        const admin = await User.find({ role: "admin" }).select("_id").lean() as any;
-        if (admin) await createNotification({
-            userId: admin._id.toString(), type: "new_student",
-            title: `💳 Card Enrollment — ${courseTitle}`,
-            message: `${studentName} (${studentEmail}) enrolled in "${courseTitle}" via Card. Access: ${accessText}.`,
-            meta: { courseId, studentId: auth.user.userId },
-        });
-
-        return NextResponse.json({ success: true, enrollment, accessType });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-}
-
-// ─────────────────────────────────────────────
 // CHECK ENROLLMENT
 // ─────────────────────────────────────────────
 export async function CheckEnrollment(request: NextRequest) {
@@ -189,59 +109,104 @@ export async function CheckEnrollment(request: NextRequest) {
 // ─────────────────────────────────────────────
 // WALLET VERIFICATION
 // ─────────────────────────────────────────────
-export async function WalletVerification(req: Request) {
+export async function WalletVerification(request: NextRequest) {
     try {
         await dbConnect();
-        const { courseId, method, phone, amount, userId, image, accessType = "full" } = await req.json();
-        if (!image) return NextResponse.json({ success: false, message: "Screenshot required." }, { status: 400 });
 
-        const upload = await cloudinary.uploader.upload(image, { folder: "lms_slips" });
+        const auth = await validateRequest(request);
+        if (!auth.success) {
+            return NextResponse.json({ error: auth.error }, { status: 401 });
+        }
 
+        const { courseId, method, phone, amount, receiptUrl, accessType = "full" } = await request.json();
+
+        if (!courseId || !mongoose.Types.ObjectId.isValid(courseId))
+            return NextResponse.json({ error: "Invalid Course ID" }, { status: 400 });
+
+        if (!receiptUrl)
+            return NextResponse.json({ error: "Receipt image required" }, { status: 400 });
+
+        const course = await Course.findById(courseId);
+        if (!course)
+            return NextResponse.json({ error: "Course not found" }, { status: 404 });
+
+        // ── Payment DB mein save ──
         const payment = await Payment.create({
-            user: userId, course: courseId, amount,
-            paymentMethod: method, senderPhone: phone,
-            receiptUrl: upload.secure_url, status: "pending", accessType,
+            user: auth.user.userId,
+            course: courseId,
+            amount,
+            paymentMethod: method,
+            senderPhone: phone,
+            receiptUrl,
+            status: "pending",
+            accessType,
         });
 
-        const [userDoc, courseDoc] = await Promise.all([
-            User.findById(userId).select("name email").lean() as any,
-            Course.findById(courseId).select("title").lean() as any,
+        // ── Student + course details fetch ──
+        const [studentDoc, adminDoc] = await Promise.all([
+            User.findById(auth.user.userId).select("name email").lean() as any,
+            User.findOne({ role: "admin" }).select("_id").lean() as any,
         ]);
 
-        const courseTitle = courseDoc?.title || "the course";
-        const studentName = userDoc?.name || "A student";
-        const studentEmail = userDoc?.email || "";
+        const studentName = studentDoc?.name || "Student";
+        const studentEmail = studentDoc?.email || "";
+        const courseTitle = course.title;
         const accessText = accessType === "half" ? "50% Half Access" : "Full Access";
         const methodUpper = method?.toUpperCase() || "WALLET";
 
-        // Email
+        // ── Student pending email ──
         try {
-            if (userDoc?.email) await sendPaymentPendingEmail({
-                toEmail: userDoc.email, userName: studentName,
-                courseName: courseTitle, amount: Number(amount), method,
-            });
-        } catch (e) { console.error("Email failed:", e); }
+            if (studentEmail) {
+                await sendPaymentPendingEmail({
+                    toEmail: studentEmail,
+                    userName: studentName,
+                    courseName: courseTitle,
+                    amount: Number(amount),
+                    method,
+                });
+            }
+        } catch (e) { console.error("Student pending email failed:", e); }
 
-        // ✅ Student — pending
+        // ── Student notification ──
         await createNotification({
-            userId, type: "payment_pending",
+            userId: auth.user.userId,
+            type: "payment_pending",
             title: "⏳ Payment Under Review",
-            message: `Your PKR ${amount} via ${methodUpper} for "${courseTitle}" (${accessText}) received. Verification within 24hrs.`,
+            message: `Your PKR ${amount} payment via ${methodUpper} for "${courseTitle}" (${accessText}) received. We'll verify within 24hrs.`,
             meta: { paymentId: payment._id.toString(), courseId },
         });
 
-        // ✅ Admin — new wallet payment
-        const admin = await User.find({ role: "admin" }).select("_id").lean() as any;
-        if (admin) await createNotification({
-            userId: admin._id.toString(), type: "new_payment",
-            title: `💰 New Payment — ${methodUpper}`,
-            message: `${studentName} (${studentEmail}) paid PKR ${amount} via ${methodUpper} for "${courseTitle}". Requesting: ${accessText}.`,
-            meta: { paymentId: payment._id.toString(), courseId, studentId: userId },
+        // ── Admin slip email ──
+        try {
+            await sendAdminSlipEmail({
+                studentName: studentName,
+                studentEmail: studentEmail,
+                courseName: courseTitle,
+                amount: Number(amount),
+                method,
+                accessType,
+                receiptUrl: receiptUrl,
+            });
+        } catch (e) { console.error("Admin slip email failed:", e); }
+
+        // ── Admin notification ──
+        if (adminDoc) {
+            await createNotification({
+                userId: adminDoc._id.toString(),
+                type: "new_payment",
+                title: `💰 New Payment — ${methodUpper}`,
+                message: `${studentName} (${studentEmail}) paid PKR ${amount} via ${methodUpper} for "${courseTitle}". Requesting: ${accessText}. Please verify slip.`,
+                meta: { paymentId: payment._id.toString(), courseId, studentId: auth.user.userId },
+            });
+        }
+
+        return NextResponse.json({
+            success: true,
+            message: "Receipt submitted. Admin will verify and enroll you shortly.",
         });
 
-        return NextResponse.json({ success: true, message: "Slip submitted!", data: payment });
     } catch (error: any) {
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 

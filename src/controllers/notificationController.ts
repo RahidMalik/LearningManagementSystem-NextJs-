@@ -117,3 +117,29 @@ export async function deleteNotification(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+// ─────────────────────────────────────────────
+// Read One
+// ─────────────────────────────────────────────
+export async function ReadOne(request: NextRequest) {
+    try {
+        await dbConnect();
+        const auth = await validateRequest(request) as any;
+        if (!auth.success) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const { id } = await request.json();
+        if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+        const uid = mongoose.Types.ObjectId.isValid(auth.user.userId)
+            ? { $in: [new mongoose.Types.ObjectId(auth.user.userId), auth.user.userId] }
+            : auth.user.userId;
+
+        await Notification.findOneAndUpdate(
+            { _id: id, userId: uid },
+            { read: true }
+        );
+
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
