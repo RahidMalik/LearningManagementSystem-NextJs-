@@ -14,6 +14,9 @@ import {
   ChevronRight,
   X,
   Tag,
+  LayoutDashboard,
+  MessageSquareText,
+  Library,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -142,7 +145,7 @@ function GlobalSearch({ onClose }: { onClose?: () => void }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => hasResults && setOpen(true)}
-          placeholder="Search courses, students..."
+          placeholder="Search courses..."
           className="w-full pl-10 pr-9 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:border-[#0a348f] dark:focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-[#0a348f]/10 dark:focus:ring-blue-500/20 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all"
         />
         {query && (
@@ -265,6 +268,9 @@ export const Header = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
+  // 🚀 STATE ADDED: Sidebar ke open/close ko control karne ke liye
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     const fetchUser = async () => {
@@ -295,6 +301,14 @@ export const Header = () => {
     );
   }
 
+  // Sidebar Menu Items Setup
+  const sidebarLinks = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/course", label: "All Courses", icon: BookOpen },
+    { href: "/course/my-courses", label: "My Learning", icon: Library },
+    { href: "/settings", label: "Settings", icon: Settings },
+  ];
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur transition-all duration-300">
       <div className="container mx-auto px-4 lg:px-8">
@@ -303,7 +317,8 @@ export const Header = () => {
           {/* Left: hamburger + logo + desktop nav */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="lg:hidden">
-              <Sheet>
+              {/* 🚀 LOGIC ADDED: Sheet ke open state ko manually bind kar diya */}
+              <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
                 <SheetTrigger asChild>
                   <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg outline-none transition-colors">
                     <Menu
@@ -314,49 +329,68 @@ export const Header = () => {
                 </SheetTrigger>
                 <SheetContent
                   side="left"
-                  className="w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800"
+                  className="w-[280px] bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 p-0 flex flex-col"
                 >
-                  <SheetHeader className="text-left border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <SheetHeader className="text-left border-b border-slate-100 dark:border-slate-800 p-6">
                     <SheetTitle>
                       <Link
                         href="/"
-                        className="text-2xl font-bold text-[#0a348f] dark:text-blue-400"
+                        onClick={() => setIsSidebarOpen(false)} // Logo click pe close
+                        className="text-2xl font-black text-[#0a348f] dark:text-blue-400 tracking-tight"
                       >
                         CYBEX
                       </Link>
                     </SheetTitle>
-                    <SheetDescription className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
+                    <SheetDescription className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-widest mt-1">
                       Learning Portal
                     </SheetDescription>
                   </SheetHeader>
-                  <nav className="flex flex-col gap-4 mt-8 pl-2">
-                    {[
-                      { href: "/course", label: "Courses" },
-                      { href: "/course/my-courses", label: "My Courses" },
-                      { href: "/messages", label: "Messages" },
-                      { href: "/settings", label: "Settings" },
-                    ].map(({ href, label }) => (
-                      <Link
-                        key={href}
-                        href={href}
-                        className="text-lg font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0a348f] dark:hover:text-blue-400 transition-colors"
-                      >
-                        {label}
-                      </Link>
-                    ))}
-                  </nav>
+
+                  <div className="flex-1 overflow-y-auto py-6 px-4">
+                    <nav className="flex flex-col gap-2">
+                      {sidebarLinks.map(({ href, label, icon: Icon }) => (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setIsSidebarOpen(false)} // 🚀 LOGIC ADDED: Click pe close ho jayega
+                          className="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-900 hover:text-[#0a348f] dark:hover:text-blue-400 transition-all group"
+                        >
+                          <Icon
+                            size={20}
+                            className="text-slate-400 group-hover:text-[#0a348f] dark:group-hover:text-blue-400 transition-colors"
+                          />
+                          {label}
+                        </Link>
+                      ))}
+
+                      {/* Admin link inside Sidebar if user is admin */}
+                      {user?.role === "admin" && (
+                        <>
+                          <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
+                          <Link
+                            href="/admin"
+                            onClick={() => setIsSidebarOpen(false)} // 🚀 LOGIC ADDED: Admin link click pe close
+                            className="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold text-amber-600 dark:text-amber-500 bg-amber-50/50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all"
+                          >
+                            <ShieldCheck size={20} />
+                            Admin Panel
+                          </Link>
+                        </>
+                      )}
+                    </nav>
+                  </div>
                 </SheetContent>
               </Sheet>
             </div>
 
             <Link
               href="/"
-              className="text-2xl font-bold text-[#0a348f] dark:text-blue-400"
+              className="text-2xl font-black text-[#0a348f] dark:text-blue-400 tracking-tight hidden sm:block"
             >
               CYBEX
             </Link>
 
-            <nav className="hidden lg:flex items-center gap-6 text-sm font-bold ml-4 text-slate-600 dark:text-slate-300">
+            <nav className="hidden lg:flex items-center gap-6 text-sm font-bold ml-6 text-slate-600 dark:text-slate-300">
               <Link
                 href="/course"
                 className="hover:text-[#0a348f] dark:hover:text-blue-400 transition-colors"
@@ -367,7 +401,7 @@ export const Header = () => {
                 href="/course/my-courses"
                 className="hover:text-[#0a348f] dark:hover:text-blue-400 transition-colors"
               >
-                My Courses
+                My Learning
               </Link>
             </nav>
           </div>
@@ -378,7 +412,7 @@ export const Header = () => {
           </div>
 
           {/* Right: actions */}
-          <div className="flex items-center gap-1 text-slate-400 shrink-0">
+          <div className="flex items-center gap-2 text-slate-400 shrink-0">
             {/* Mobile: search icon toggle */}
             <button
               onClick={() => setMobileSearchOpen((v) => !v)}
@@ -387,7 +421,8 @@ export const Header = () => {
               {mobileSearchOpen ? <X size={20} /> : <Search size={20} />}
             </button>
 
-            <Link href="/messages" className="hidden sm:block">
+            {/* Hidden md:block for Messages icon */}
+            <Link href="/messages" className="hidden md:block">
               <button className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-[#0a348f] dark:hover:text-blue-400 rounded-full transition-colors">
                 <MessageSquare size={20} />
               </button>

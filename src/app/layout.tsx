@@ -36,7 +36,7 @@ export default function RootLayout({
               {!hideLayout && <Header />}
               <main className="grow">{children}</main>
               {!hideLayout && !hideFooter && <Footer />}
-              {!hideLayout && !hideFooter && <BottomNav />}
+              {!hideLayout && <BottomNav />}
             </div>
           </NotificationProvider>
         </ThemeProvider>

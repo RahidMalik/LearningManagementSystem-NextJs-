@@ -44,14 +44,13 @@ const EMPTY_FORM = {
   rating: "",
   badge: "New Release",
   thumbnail: null as File | string | null,
-  introVideo: null as File | null, // optional intro video file
-  instructorImageFile: null as File | null, // optional instructor image file
+  introVideo: null as File | null,
+  instructorImageFile: null as File | null,
   lectures: [] as { title: string; videoFile: File | null; videoUrl: string }[],
 };
 
 type FormData = typeof EMPTY_FORM;
 
-// ── Upload status per-item ──────────────────────────
 type UploadItem = { label: string; progress: number; done: boolean };
 
 export default function AdminCourses() {
@@ -155,7 +154,6 @@ export default function AdminCourses() {
     if (formData.category === cat) set("category", categories[0]);
   };
 
-  // ── Update lecture field ──
   const updateLecture = (
     idx: number,
     field: "title" | "videoFile" | "videoUrl",
@@ -166,13 +164,11 @@ export default function AdminCourses() {
     set("lectures", updated);
   };
 
-  // ── Main submit ──────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setOverallProgress(0);
 
-    // Build upload queue for progress display
     const items: UploadItem[] = [];
     if (formData.thumbnail instanceof File)
       items.push({ label: "Thumbnail", progress: 0, done: false });
@@ -203,7 +199,6 @@ export default function AdminCourses() {
       data.append("rating", formData.rating);
       data.append("badge", formData.badge);
 
-      // Optional files
       if (formData.thumbnail instanceof File)
         data.append("thumbnail", formData.thumbnail);
       if (formData.introVideo instanceof File)
@@ -211,7 +206,6 @@ export default function AdminCourses() {
       if (formData.instructorImageFile instanceof File)
         data.append("instructorImage", formData.instructorImageFile);
 
-      // Lectures — send titles + existing URLs; video files sent separately
       const lecturesMeta = formData.lectures.map((l, i) => ({
         title: l.title,
         videoUrl: l.videoUrl || "",
@@ -220,7 +214,6 @@ export default function AdminCourses() {
       }));
       data.append("lectures", JSON.stringify(lecturesMeta));
 
-      // Append each lecture video file with index key
       formData.lectures.forEach((l, i) => {
         if (l.videoFile instanceof File) {
           data.append(`lectureVideo_${i}`, l.videoFile);
@@ -229,7 +222,6 @@ export default function AdminCourses() {
 
       const onProgress = (p: number) => {
         setOverallProgress(p);
-        // Update all upload items proportionally
         setUploadItems((prev) =>
           prev.map((item) => (item.done ? item : { ...item, progress: p })),
         );
@@ -266,20 +258,22 @@ export default function AdminCourses() {
       c.category?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  // Background hata diya in inputs se
   const inp =
-    "w-full p-3 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl text-sm font-semibold text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#0a348f] dark:focus:border-blue-500 transition-all";
+    "w-full p-3 border border-slate-200 dark:border-zinc-700 rounded-xl text-sm font-semibold text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-zinc-600 focus:outline-none focus:border-[#0a348f] dark:focus:border-blue-500 transition-all bg-transparent";
   const lbl =
     "block text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5";
   const sectionHead =
     "text-[10px] font-black text-[#0a348f] dark:text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-1.5";
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-zinc-950">
+    // Yahan se main div ka background hata diya
+    <div className="flex min-h-screen">
       <AdminSidebar />
 
       <main className="flex-1 overflow-auto">
         {/* ── Header ── */}
-        <div className="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-slate-100 dark:border-zinc-800 px-4 sm:px-8 py-4">
+        <div className="sticky top-0 z-30 border-b border-slate-100 dark:border-zinc-800 px-4 sm:px-8 py-4 bg-transparent backdrop-blur-md">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <div className="flex items-center gap-2">
@@ -305,7 +299,8 @@ export default function AdminCourses() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search courses..."
-                  className="pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl w-48 sm:w-56 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 focus:outline-none focus:border-[#0a348f] transition-all"
+                  // Background transparent
+                  className="pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-zinc-700 rounded-xl w-48 sm:w-56 text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 focus:outline-none focus:border-[#0a348f] transition-all bg-transparent"
                 />
               </div>
               <motion.button
@@ -324,7 +319,7 @@ export default function AdminCourses() {
 
         {/* ── Course List ── */}
         <div className="px-4 sm:px-8 py-6 sm:py-8">
-          <div className="bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
+          <div className="border border-slate-100 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm bg-transparent">
             <div className="px-4 sm:px-6 py-4 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
               <h2 className="font-black text-sm text-slate-800 dark:text-white uppercase tracking-tight">
                 All Courses
@@ -348,7 +343,7 @@ export default function AdminCourses() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="w-16 h-16 rounded-3xl bg-slate-50 dark:bg-zinc-800 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-3xl flex items-center justify-center bg-slate-100/50 dark:bg-zinc-800/50">
                   <BookOpen
                     size={28}
                     className="text-slate-300 dark:text-zinc-600"
@@ -374,9 +369,10 @@ export default function AdminCourses() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ delay: idx * 0.04 }}
-                      className="flex items-center gap-3 sm:gap-5 px-4 sm:px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-zinc-800/30 transition-all group"
+                      // Hover backgrounds halka kiya
+                      className="flex items-center gap-3 sm:gap-5 px-4 sm:px-6 py-4 hover:bg-slate-50/40 dark:hover:bg-zinc-800/20 transition-all group"
                     >
-                      <div className="relative w-20 sm:w-28 h-14 sm:h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-zinc-800">
+                      <div className="relative w-20 sm:w-28 h-14 sm:h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100/50 dark:bg-zinc-800/50">
                         {course.thumbnail ? (
                           <img
                             src={course.thumbnail}
@@ -394,16 +390,16 @@ export default function AdminCourses() {
                           {course.title}
                         </h3>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <span className="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 text-[#0a348f] dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase">
+                          <span className="inline-flex items-center gap-1 text-[#0a348f] dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase bg-transparent">
                             <Tag size={8} /> {course.category}
                           </span>
                           {course.level && (
-                            <span className="hidden sm:inline text-[9px] bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 px-2 py-0.5 rounded-lg font-black uppercase">
+                            <span className="hidden sm:inline text-[9px] text-slate-500 dark:text-zinc-400 px-2 py-0.5 rounded-lg font-black uppercase bg-transparent border border-slate-200 dark:border-zinc-700">
                               {course.level}
                             </span>
                           )}
                           {course.badge && (
-                            <span className="hidden sm:inline text-[9px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 px-2 py-0.5 rounded-lg font-black">
+                            <span className="hidden sm:inline text-[9px] text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 px-2 py-0.5 rounded-lg font-black bg-transparent">
                               {course.badge}
                             </span>
                           )}
@@ -422,13 +418,13 @@ export default function AdminCourses() {
                       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                         <button
                           onClick={() => handleEdit(course)}
-                          className="p-2 sm:p-2.5 bg-blue-50 dark:bg-blue-500/10 text-[#0a348f] dark:text-blue-400 rounded-xl hover:bg-[#0a348f] hover:text-white transition-all border border-blue-100 dark:border-blue-500/20"
+                          className="p-2 sm:p-2.5 text-[#0a348f] dark:text-blue-400 rounded-xl hover:bg-[#0a348f] hover:text-white transition-all border border-blue-100 dark:border-blue-500/20 bg-transparent"
                         >
                           <Pencil size={13} />
                         </button>
                         <button
                           onClick={() => handleDelete(course._id)}
-                          className="p-2 sm:p-2.5 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all border border-red-100 dark:border-red-500/20"
+                          className="p-2 sm:p-2.5 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all border border-red-100 dark:border-red-500/20 bg-transparent"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -456,6 +452,7 @@ export default function AdminCourses() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 30 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              // Modal ka background white rakha hai for readability, lekin aap isay bhi transparent kar sakte hain zaroorat parne par.
               className="bg-white dark:bg-zinc-900 w-full sm:max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden relative border border-slate-100 dark:border-zinc-800 max-h-[95vh] sm:max-h-[90vh] flex flex-col"
             >
               {/* Upload overlay */}
@@ -471,7 +468,7 @@ export default function AdminCourses() {
                       transition={{ repeat: Infinity, duration: 1.8 }}
                       className="mb-5"
                     >
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center bg-transparent border border-slate-200 dark:border-zinc-700">
                         <Upload
                           className="text-[#0a348f] dark:text-blue-400"
                           size={30}
@@ -493,7 +490,7 @@ export default function AdminCourses() {
                             <span>{item.label}</span>
                             <span>{item.done ? "✓" : `${item.progress}%`}</span>
                           </div>
-                          <div className="h-1 bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-1 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                             <motion.div
                               className={`h-full rounded-full ${item.done ? "bg-green-400" : "bg-gradient-to-r from-[#0a348f] to-blue-400"}`}
                               initial={{ width: 0 }}
@@ -506,7 +503,7 @@ export default function AdminCourses() {
                       ))}
                     </div>
 
-                    <div className="w-full max-w-xs bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                    <div className="w-full max-w-xs bg-slate-200 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
                       <motion.div
                         className="h-full bg-gradient-to-r from-[#0a348f] to-blue-400 rounded-full"
                         initial={{ width: 0 }}
@@ -522,7 +519,7 @@ export default function AdminCourses() {
               </AnimatePresence>
 
               {/* Modal header */}
-              <div className="px-5 sm:px-7 py-4 sm:py-5 border-b border-slate-100 dark:border-zinc-800 flex justify-between items-center bg-slate-50/50 dark:bg-zinc-800/30 flex-shrink-0">
+              <div className="px-5 sm:px-7 py-4 sm:py-5 border-b border-slate-100 dark:border-zinc-800 flex justify-between items-center bg-transparent flex-shrink-0">
                 <div>
                   <h2 className="font-black text-slate-900 dark:text-white text-sm sm:text-base">
                     {editId ? "Update Course" : "Create New Course"}
@@ -533,7 +530,7 @@ export default function AdminCourses() {
                 </div>
                 <button
                   onClick={closeModal}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-xl transition-all"
+                  className="p-2 hover:bg-slate-100/50 dark:hover:bg-zinc-800/50 rounded-xl transition-all"
                 >
                   <X size={18} className="text-slate-500 dark:text-zinc-400" />
                 </button>
@@ -542,7 +539,7 @@ export default function AdminCourses() {
               {/* ── Form ── */}
               <form
                 onSubmit={handleSubmit}
-                className="flex flex-col flex-1 min-h-0"
+                className="flex flex-col flex-1 min-h-0 bg-transparent"
               >
                 <div className="overflow-y-auto flex-1 p-5 sm:p-7 space-y-6">
                   {/* ── Basic Info ── */}
@@ -635,7 +632,6 @@ export default function AdminCourses() {
                           />
                         </div>
                       </div>
-                      {/* Instructor image — file upload (optional) */}
                       <div>
                         <label className={lbl}>
                           Instructor Image
@@ -643,7 +639,7 @@ export default function AdminCourses() {
                             (optional)
                           </span>
                         </label>
-                        <div className="relative h-11 border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-xl overflow-hidden bg-slate-50 dark:bg-zinc-800 hover:border-[#0a348f] dark:hover:border-blue-500 transition-all group/iimg flex items-center gap-3 px-3 cursor-pointer">
+                        <div className="relative h-11 border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-xl overflow-hidden bg-transparent hover:border-[#0a348f] dark:hover:border-blue-500 transition-all group/iimg flex items-center gap-3 px-3 cursor-pointer">
                           {formData.instructorImageFile ? (
                             <>
                               <img
@@ -662,7 +658,7 @@ export default function AdminCourses() {
                                   e.stopPropagation();
                                   set("instructorImageFile", null);
                                 }}
-                                className="p-1 hover:bg-red-50 rounded-lg flex-shrink-0"
+                                className="p-1 hover:bg-red-50/50 rounded-lg flex-shrink-0"
                               >
                                 <X size={12} className="text-red-400" />
                               </button>
@@ -684,15 +680,15 @@ export default function AdminCourses() {
                           ) : (
                             <>
                               <div
-                                className="w-7 h-7 rounded-full bg-slate-100 dark:bg-zinc-700 flex items-center justify-center flex-shrink-0
-                                group-hover/iimg:bg-blue-50 dark:group-hover/iimg:bg-blue-500/10 transition-colors"
+                                className="w-7 h-7 rounded-full bg-slate-100/50 dark:bg-zinc-800/50 flex items-center justify-center flex-shrink-0
+                                group-hover/iimg:bg-blue-50/50 dark:group-hover/iimg:bg-blue-500/10 transition-colors"
                               >
                                 <User
                                   size={13}
                                   className="text-slate-300 dark:text-zinc-500 group-hover/iimg:text-[#0a348f] dark:group-hover/iimg:text-blue-400 transition-colors"
                                 />
                               </div>
-                              <span className="text-xs text-slate-300 dark:text-zinc-600 font-bold group-hover/iimg:text-[#0a348f] dark:group-hover/iimg:text-blue-400 transition-colors">
+                              <span className="text-xs text-slate-400 dark:text-zinc-500 font-bold group-hover/iimg:text-[#0a348f] dark:group-hover/iimg:text-blue-400 transition-colors">
                                 Upload photo
                               </span>
                             </>
@@ -731,7 +727,7 @@ export default function AdminCourses() {
                               className={`py-2 px-1 sm:px-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wide border transition-all ${
                                 formData.level === l
                                   ? "bg-[#0a348f] dark:bg-blue-500 text-white border-transparent shadow-md"
-                                  : "bg-slate-50 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f]"
+                                  : "bg-transparent text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f]"
                               }`}
                             >
                               {l}
@@ -751,7 +747,7 @@ export default function AdminCourses() {
                               className={`py-2 px-2 sm:px-3 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wide border transition-all flex items-center gap-1 ${
                                 formData.language === lang
                                   ? "bg-[#0a348f] dark:bg-blue-500 text-white border-transparent"
-                                  : "bg-slate-50 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f]"
+                                  : "bg-transparent text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f]"
                               }`}
                             >
                               <Globe size={9} /> {lang}
@@ -772,7 +768,7 @@ export default function AdminCourses() {
                                 className={`py-2 px-2 rounded-xl text-[9px] sm:text-[10px] font-black border transition-all flex items-center gap-1 ${
                                   formData.badge === b
                                     ? "bg-amber-500 text-white border-transparent"
-                                    : "bg-slate-50 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border-slate-200 dark:border-zinc-700 hover:border-amber-400"
+                                    : "bg-transparent text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:border-amber-400"
                                 }`}
                               >
                                 <Award size={9} /> {b}
@@ -822,7 +818,7 @@ export default function AdminCourses() {
                       <button
                         type="button"
                         onClick={handleAddCategory}
-                        className="bg-[#0a348f] dark:bg-blue-500 text-white px-4 rounded-xl font-bold text-sm hover:bg-blue-800 transition-all"
+                        className="bg-[#0a348f] dark:bg-blue-500 text-white px-4 rounded-xl font-bold text-sm hover:bg-blue-800 transition-all border border-transparent"
                       >
                         Add
                       </button>
@@ -836,7 +832,7 @@ export default function AdminCourses() {
                             className={`pl-3 sm:pl-3.5 pr-6 sm:pr-7 py-1.5 rounded-xl text-xs font-bold transition-all border ${
                               formData.category === cat
                                 ? "bg-[#0a348f] dark:bg-blue-500 text-white border-transparent shadow-md"
-                                : "bg-slate-50 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f]"
+                                : "bg-transparent text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-zinc-700 hover:border-[#0a348f]"
                             }`}
                           >
                             {cat}{" "}
@@ -865,7 +861,7 @@ export default function AdminCourses() {
                       {/* Thumbnail */}
                       <div>
                         <label className={lbl}>Thumbnail Image</label>
-                        <div className="relative h-32 sm:h-36 border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-2xl overflow-hidden bg-slate-50 dark:bg-zinc-800 hover:border-[#0a348f] dark:hover:border-blue-500 transition-all group/thumb">
+                        <div className="relative h-32 sm:h-36 border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-2xl overflow-hidden bg-transparent hover:border-[#0a348f] dark:hover:border-blue-500 transition-all group/thumb">
                           {formData.thumbnail ? (
                             <>
                               <img
@@ -887,13 +883,13 @@ export default function AdminCourses() {
                             </>
                           ) : (
                             <div className="flex flex-col items-center justify-center h-full gap-2">
-                              <div className="p-3 bg-slate-100 dark:bg-zinc-700 rounded-2xl group-hover/thumb:bg-blue-50 dark:group-hover/thumb:bg-blue-500/10 transition-colors">
+                              <div className="p-3 bg-slate-100/50 dark:bg-zinc-800/50 rounded-2xl group-hover/thumb:bg-blue-50/50 dark:group-hover/thumb:bg-blue-500/10 transition-colors">
                                 <ImageIcon
                                   size={20}
-                                  className="text-slate-300 dark:text-zinc-500 group-hover/thumb:text-[#0a348f] dark:group-hover/thumb:text-blue-400 transition-colors"
+                                  className="text-slate-400 dark:text-zinc-500 group-hover/thumb:text-[#0a348f] dark:group-hover/thumb:text-blue-400 transition-colors"
                                 />
                               </div>
-                              <span className="text-[10px] font-black text-slate-300 dark:text-zinc-600 uppercase tracking-wider">
+                              <span className="text-[10px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-wider">
                                 Upload Thumbnail
                               </span>
                             </div>
@@ -917,20 +913,20 @@ export default function AdminCourses() {
                             (optional)
                           </span>
                         </label>
-                        <div className="relative h-32 sm:h-36 border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-2xl bg-slate-50 dark:bg-zinc-800 hover:border-[#0a348f] dark:hover:border-blue-500 transition-all group/vid flex flex-col items-center justify-center gap-2 px-4">
+                        <div className="relative h-32 sm:h-36 border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-2xl bg-transparent hover:border-[#0a348f] dark:hover:border-blue-500 transition-all group/vid flex flex-col items-center justify-center gap-2 px-4">
                           <div
-                            className={`p-3 rounded-2xl transition-colors ${formData.introVideo ? "bg-green-50 dark:bg-green-500/10" : "bg-slate-100 dark:bg-zinc-700 group-hover/vid:bg-blue-50 dark:group-hover/vid:bg-blue-500/10"}`}
+                            className={`p-3 rounded-2xl transition-colors ${formData.introVideo ? "bg-green-50/50 dark:bg-green-500/10" : "bg-slate-100/50 dark:bg-zinc-800/50 group-hover/vid:bg-blue-50/50 dark:group-hover/vid:bg-blue-500/10"}`}
                           >
                             <Video
                               size={20}
                               className={
                                 formData.introVideo
                                   ? "text-green-500"
-                                  : "text-slate-300 dark:text-zinc-500 group-hover/vid:text-[#0a348f] dark:group-hover/vid:text-blue-400 transition-colors"
+                                  : "text-slate-400 dark:text-zinc-500 group-hover/vid:text-[#0a348f] dark:group-hover/vid:text-blue-400 transition-colors"
                               }
                             />
                           </div>
-                          <span className="text-[10px] font-black text-center uppercase tracking-wider truncate w-full text-center px-2 text-slate-300 dark:text-zinc-600">
+                          <span className="text-[10px] font-black text-center uppercase tracking-wider truncate w-full text-center px-2 text-slate-400 dark:text-zinc-500">
                             {formData.introVideo
                               ? formData.introVideo.name
                               : editId
@@ -939,7 +935,7 @@ export default function AdminCourses() {
                           </span>
                           {formData.introVideo && (
                             <>
-                              <span className="text-[9px] bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-black border border-green-100 dark:border-green-500/20">
+                              <span className="text-[9px] bg-transparent text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-black border border-green-500/50">
                                 Selected ✓
                               </span>
                               <button
@@ -974,12 +970,11 @@ export default function AdminCourses() {
                       {formData.lectures.map((lec, idx) => (
                         <div
                           key={idx}
-                          className="bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl p-3 sm:p-4 group/lec space-y-2"
+                          className="bg-transparent border border-slate-200 dark:border-zinc-700 rounded-2xl p-3 sm:p-4 group/lec space-y-2"
                         >
-                          {/* Top row: number + title + remove */}
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-lg bg-[#0a348f]/10 dark:bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                              <span className="text-[10px] font-black text-[#0a348f] dark:text-blue-400">
+                            <div className="w-6 h-6 rounded-lg border border-slate-200 dark:border-zinc-700 flex items-center justify-center flex-shrink-0">
+                              <span className="text-[10px] font-black text-slate-500 dark:text-zinc-400">
                                 {idx + 1}
                               </span>
                             </div>
@@ -989,7 +984,7 @@ export default function AdminCourses() {
                               onChange={(e) =>
                                 updateLecture(idx, "title", e.target.value)
                               }
-                              className="flex-1 bg-transparent text-sm font-semibold text-slate-700 dark:text-zinc-300 placeholder:text-slate-300 dark:placeholder:text-zinc-600 focus:outline-none min-w-0"
+                              className="flex-1 bg-transparent text-sm font-semibold text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none min-w-0"
                             />
                             <button
                               type="button"
@@ -999,17 +994,16 @@ export default function AdminCourses() {
                                   formData.lectures.filter((_, i) => i !== idx),
                                 )
                               }
-                              className="p-1.5 rounded-lg text-slate-300 dark:text-zinc-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all flex-shrink-0"
+                              className="p-1.5 rounded-lg text-slate-400 dark:text-zinc-500 hover:text-red-500 transition-all flex-shrink-0"
                             >
                               <X size={13} />
                             </button>
                           </div>
 
-                          {/* Video upload row */}
                           <div className="relative border border-dashed border-slate-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-[#0a348f] dark:hover:border-blue-500 transition-all group/lvid">
                             <div className="flex items-center gap-2.5 px-3 py-2.5">
                               <div
-                                className={`p-1.5 rounded-lg flex-shrink-0 transition-colors ${lec.videoFile ? "bg-green-50 dark:bg-green-500/10" : "bg-slate-100 dark:bg-zinc-700 group-hover/lvid:bg-blue-50 dark:group-hover/lvid:bg-blue-500/10"}`}
+                                className={`p-1.5 rounded-lg flex-shrink-0 transition-colors ${lec.videoFile ? "bg-green-50/50 dark:bg-green-500/10" : "bg-slate-100/50 dark:bg-zinc-800/50 group-hover/lvid:bg-blue-50/50 dark:group-hover/lvid:bg-blue-500/10"}`}
                               >
                                 <Video
                                   size={13}
@@ -1020,7 +1014,7 @@ export default function AdminCourses() {
                                   }
                                 />
                               </div>
-                              <span className="text-xs text-slate-400 dark:text-zinc-500 truncate flex-1">
+                              <span className="text-xs text-slate-500 dark:text-zinc-400 truncate flex-1">
                                 {lec.videoFile
                                   ? lec.videoFile.name
                                   : lec.videoUrl
@@ -1028,7 +1022,7 @@ export default function AdminCourses() {
                                     : "Upload lecture video (MP4)"}
                               </span>
                               {(lec.videoFile || lec.videoUrl) && (
-                                <span className="text-[9px] bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-black border border-green-100 dark:border-green-500/20 flex-shrink-0">
+                                <span className="text-[9px] bg-transparent text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-black border border-green-500/50 flex-shrink-0">
                                   {lec.videoFile ? "New ✓" : "Saved ✓"}
                                 </span>
                               )}
@@ -1058,7 +1052,7 @@ export default function AdminCourses() {
                           { title: "", videoFile: null, videoUrl: "" },
                         ])
                       }
-                      className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-2xl text-xs font-black text-slate-400 dark:text-zinc-500 uppercase tracking-wider hover:border-[#0a348f] dark:hover:border-blue-500 hover:text-[#0a348f] dark:hover:text-blue-400 transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-2xl text-xs font-black text-slate-500 dark:text-zinc-400 uppercase tracking-wider hover:border-[#0a348f] dark:hover:border-blue-500 hover:text-[#0a348f] dark:hover:text-blue-400 transition-all flex items-center justify-center gap-2 bg-transparent"
                     >
                       <Plus size={13} strokeWidth={3} /> Add Lecture
                     </button>
@@ -1066,7 +1060,7 @@ export default function AdminCourses() {
                 </div>
 
                 {/* ── Submit ── */}
-                <div className="px-5 sm:px-7 py-4 sm:py-5 pb-24 sm:pb-5 border-t border-slate-100 dark:border-zinc-800 flex-shrink-0">
+                <div className="px-5 sm:px-7 py-4 sm:py-5 pb-24 sm:pb-5 border-t border-slate-100 dark:border-zinc-800 flex-shrink-0 bg-transparent">
                   <motion.button
                     type="submit"
                     disabled={isLoading}

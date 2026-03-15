@@ -148,6 +148,19 @@ export const api = {
             data: payload,
         });
     },
+    // Edit message
+    editMessage: async (payload: { messageId: string; text: string }): Promise<ApiResponse<any>> => {
+        return await apiClient.request('/messages', {
+            method: 'PUT',
+            data: payload,
+        });
+    },
+    // Delete message
+    deleteMessage: async (messageId: string): Promise<ApiResponse<any>> => {
+        return await apiClient.request(`/messages?messageId=${messageId}`, {
+            method: 'DELETE',
+        });
+    },
     // 4. Mark message as seen
     markAsSeen: async (messageId: string): Promise<ApiResponse<{ success: boolean }>> => {
         return await apiClient.request<{ success: boolean }>('/messages/seen', {

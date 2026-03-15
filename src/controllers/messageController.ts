@@ -204,4 +204,61 @@ export async function getAdminInfo(request: NextRequest) {
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
+};
+// ─────────────────────────────────────────────
+// EDIT MESSAGE
+// PUT /api/messages
+// body: { messageId, text }
+// ─────────────────────────────────────────────
+export async function editMessage(request: NextRequest) {
+    try {
+        await dbConnect();
+        const auth = await validateRequest(request) as AuthResult;
+        if (!auth.success) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const { messageId, text } = await request.json();
+        if (!messageId || !text) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+
+        const message = await Message.findById(messageId);
+        if (!message) return NextResponse.json({ error: "Message not found" }, { status: 404 });
+
+        // Check if current user is the sender
+        if (message.senderId.toString() !== auth.user.userId) {
+            return NextResponse.json({ error: "Cannot edit others' message" }, { status: 403 });
+        }
+
+        message.text = text;
+        await message.save();
+
+        return NextResponse.json({ success: true, data: message });
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+// ─────────────────────────────────────────────
+// DELETE MESSAGE
+// DELETE /api/messages?messageId=xxx
+// ─────────────────────────────────────────────
+export async function deleteMessage(request: NextRequest) {
+    try {
+        await dbConnect();
+        const auth = await validateRequest(request) as AuthResult;
+        if (!auth.success) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const messageId = new URL(request.url).searchParams.get("messageId");
+        if (!messageId) return NextResponse.json({ error: "Missing messageId" }, { status: 400 });
+
+        const message = await Message.findById(messageId);
+        if (!message) return NextResponse.json({ error: "Message not found" }, { status: 404 });
+
+        if (message.senderId.toString() !== auth.user.userId) {
+            return NextResponse.json({ error: "Cannot delete others' message" }, { status: 403 });
+        }
+
+        await Message.findByIdAndDelete(messageId);
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 }
